@@ -99,6 +99,7 @@ See [docs/curator_design.md](docs/curator_design.md) for the proposed curator
 and write gate design.
 See [docs/curator_examples.md](docs/curator_examples.md) for expected curator
 behavior examples.
+Machine-readable curator examples live in `data/curator_examples.jsonl`.
 
 To test the current curator dry-run stub:
 

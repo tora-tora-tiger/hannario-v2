@@ -3,6 +3,8 @@
 These examples define expected curator behavior. They are not automated tests
 yet, but they should guide prompt and schema changes.
 
+Machine-readable copies live in `data/curator_examples.jsonl`.
+
 ## Normal Conversation
 
 Input:
