@@ -17,7 +17,8 @@ Discord
 - `discord_context.py` formats Discord messages for Letta.
 - `letta_agent.py` owns Letta message calls, replies, and tool diagnostics.
 - Letta owns agent state, message history, memory blocks, and custom tools.
-- OpenAI keys are only passed to the Letta server and local OpenAI helper scripts.
+- OpenAI keys are used by the Letta server, the bot's optional auto-summary
+  task, and local OpenAI helper scripts.
 - Letta data is stored in the Docker volume `hannario-v2_letta_pgdata`.
 - Local runtime logs are written under `logs/`, which is ignored by git.
 
@@ -100,6 +101,10 @@ LETTA_BASE_URL=http://localhost:8283
 LETTA_AGENT_ID=...
 DISCORD_CONTEXT_MESSAGE_LIMIT=5
 DISCORD_INCLUDE_CHANNEL_SUMMARY=0
+DISCORD_AUTO_SUMMARY_ENABLED=0
+DISCORD_AUTO_SUMMARY_INTERVAL_SECONDS=600
+DISCORD_AUTO_SUMMARY_LIMIT=20
+DISCORD_AUTO_SUMMARY_MIN_NEW_MESSAGES=5
 ```
 
 Then run:
@@ -116,6 +121,8 @@ uv run python bot.py
   messages from the same channel as context. Set it to `0` to disable this.
 - If `DISCORD_INCLUDE_CHANNEL_SUMMARY=1`, the bot also sends the latest saved
   same-channel summary from `logs/channel_summaries.jsonl`.
+- If `DISCORD_AUTO_SUMMARY_ENABLED=1`, the bot periodically summarizes
+  observed channel messages and appends results to `logs/channel_summaries.jsonl`.
 - The bot replies in the same channel.
 - The bot ignores messages from itself and other bots.
 - If Letta fails, the bot sends a short fallback reply instead of crashing.
@@ -140,11 +147,16 @@ After a play session:
 uv run python scripts/snapshot_agent_memory.py
 uv run python scripts/diff_latest_memory_snapshots.py
 uv run python scripts/list_observed_channels.py
-uv run python scripts/summarize_all_observed_channels.py --limit 20 --save
 ```
 
 This lets the agent use Letta memory freely while still making memory drift and
 channel summaries visible.
+
+If automatic summaries are disabled, run a manual summary after the session:
+
+```sh
+uv run python scripts/summarize_all_observed_channels.py --limit 20 --save
+```
 
 ## Logs And Summaries
 
@@ -163,6 +175,19 @@ Saved summaries are appended to `logs/channel_summaries.jsonl`.
 
 Logs do not include Discord tokens, OpenAI keys, Letta internal responses, raw
 Discord message dumps, or attachment contents.
+
+Automatic summaries are controlled by:
+
+```env
+DISCORD_AUTO_SUMMARY_ENABLED=1
+DISCORD_AUTO_SUMMARY_INTERVAL_SECONDS=600
+DISCORD_AUTO_SUMMARY_LIMIT=20
+DISCORD_AUTO_SUMMARY_MIN_NEW_MESSAGES=5
+```
+
+The bot summarizes a channel only when at least
+`DISCORD_AUTO_SUMMARY_MIN_NEW_MESSAGES` new observed messages exist since that
+channel's latest saved summary.
 
 Useful commands:
 
@@ -268,7 +293,6 @@ uv run python scripts/preview_memory_apply.py "P006: ユーザーが希望した
 ## Not Implemented Yet
 
 - Automatic curator apply or read-only memory write gate.
-- Automatic scheduled channel summarization inside the running bot.
 - Heartbeat or scheduled autonomous actions.
 - Discord write tools beyond sending replies.
 - Web or database tools.

@@ -7,6 +7,11 @@ import discord
 from dotenv import load_dotenv
 from letta_client import Letta
 
+from auto_channel_summary import (
+    AutoSummaryConfig,
+    load_auto_summary_config_from_env,
+    run_auto_channel_summaries_once,
+)
 from channel_summaries import read_latest_channel_summary
 from conversation_log import log_mention_reply, log_observed_message
 from letta_agent import LettaToolEvent, ask_letta_with_diagnostics
@@ -117,16 +122,42 @@ async def fetch_recent_channel_messages(
 
 
 class HannarioClient(discord.Client):
-    def __init__(self, *, letta_client: Letta, letta_agent_id: str | None, **kwargs: Any):
+    def __init__(
+        self,
+        *,
+        letta_client: Letta,
+        letta_agent_id: str | None,
+        auto_summary_config: AutoSummaryConfig,
+        **kwargs: Any,
+    ):
         super().__init__(**kwargs)
         self.letta_client = letta_client
         self.letta_agent_id = letta_agent_id
+        self.auto_summary_config = auto_summary_config
+        self.auto_summary_task: asyncio.Task[None] | None = None
 
     async def on_ready(self) -> None:
         if self.user is None:
             return
 
         logging.info("Logged in as %s (id=%s)", self.user, self.user.id)
+        self.start_auto_summary_task()
+
+    def start_auto_summary_task(self) -> None:
+        if not self.auto_summary_config.enabled:
+            return
+        if self.auto_summary_task is not None and not self.auto_summary_task.done():
+            return
+
+        self.auto_summary_task = asyncio.create_task(
+            run_auto_summary_loop(self.auto_summary_config),
+        )
+        logging.info(
+            "Started Discord auto summary task: interval=%ds limit=%d min_new_messages=%d",
+            self.auto_summary_config.interval_seconds,
+            self.auto_summary_config.limit,
+            self.auto_summary_config.min_new_messages,
+        )
 
     async def on_message(self, message: discord.Message) -> None:
         if self.user is None:
@@ -218,6 +249,24 @@ class HannarioClient(discord.Client):
         )
 
 
+async def run_auto_summary_loop(config: AutoSummaryConfig) -> None:
+    while True:
+        try:
+            result = await asyncio.to_thread(run_auto_channel_summaries_once, config)
+        except Exception:
+            logging.exception("Discord auto summary run failed")
+        else:
+            if result.summarized or result.errors:
+                logging.info(
+                    "Discord auto summary run completed: summarized=%d skipped=%d errors=%d",
+                    result.summarized,
+                    result.skipped,
+                    result.errors,
+                )
+
+        await asyncio.sleep(config.interval_seconds)
+
+
 def main() -> None:
     load_dotenv()
     logging.basicConfig(
@@ -234,11 +283,13 @@ def main() -> None:
 
     letta_client = Letta(base_url=os.getenv("LETTA_BASE_URL", DEFAULT_LETTA_BASE_URL))
     letta_agent_id = os.getenv("LETTA_AGENT_ID")
+    auto_summary_config = load_auto_summary_config_from_env()
 
     client = HannarioClient(
         intents=intents,
         letta_client=letta_client,
         letta_agent_id=letta_agent_id,
+        auto_summary_config=auto_summary_config,
     )
     client.run(token, log_handler=None)
 
