@@ -162,6 +162,7 @@ def get_latest_discord_channel_summary(channel_id: str) -> str:
     return "\n".join(
         [
             "latest_same_channel_summary:",
+            "note: Use this only as older background if more recent same-channel context is available.",
             f"channel: {channel_name} ({channel_id})",
             f"created_at: {created_at}",
             f"observed_range: {first_observed_at} -> {last_observed_at}",

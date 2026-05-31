@@ -15,7 +15,7 @@ class PreviewMentionInputWithSummaryTest(unittest.TestCase):
     def test_format_latest_channel_summary_without_summary(self) -> None:
         self.assertEqual(
             format_latest_channel_summary(None),
-            "latest_same_channel_summary:\n(no saved summary)",
+            "supplemental_same_channel_summary:\n(no saved summary)",
         )
 
     def test_format_latest_channel_summary(self) -> None:
@@ -31,7 +31,8 @@ class PreviewMentionInputWithSummaryTest(unittest.TestCase):
 
         text = format_latest_channel_summary(summary)
 
-        self.assertIn("latest_same_channel_summary:", text)
+        self.assertIn("supplemental_same_channel_summary:", text)
+        self.assertIn("Use this only as older background", text)
         self.assertIn("channel: general (123)", text)
         self.assertIn("record_count: 2", text)
         self.assertIn("要約です", text)
@@ -67,10 +68,12 @@ class PreviewMentionInputWithSummaryTest(unittest.TestCase):
 
         text = build_preview_input(mention, summary)
 
-        self.assertIn("Discord mention", text)
-        self.assertIn("latest_same_channel_summary:", text)
+        self.assertIn("Discord message", text)
+        self.assertIn("priority: Prefer current_message", text)
+        self.assertIn("supplemental_same_channel_summary:", text)
         self.assertIn("saved_discord_api_recent_context_oldest_first:", text)
         self.assertIn("current_message:", text)
+        self.assertLess(text.index("current_message:"), text.index("supplemental_same_channel_summary:"))
 
 
 if __name__ == "__main__":

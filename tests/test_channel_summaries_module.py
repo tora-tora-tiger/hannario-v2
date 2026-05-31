@@ -87,7 +87,8 @@ class ChannelSummariesModuleTest(unittest.TestCase):
 
         self.assertIsNotNone(text)
         assert text is not None
-        self.assertIn("latest_same_channel_summary:", text)
+        self.assertIn("supplemental_same_channel_summary:", text)
+        self.assertIn("Use this only as older background", text)
         self.assertIn("channel: general (123)", text)
         self.assertIn("summary", text)
 

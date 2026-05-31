@@ -92,6 +92,7 @@ class LettaDiscordToolsTest(unittest.TestCase):
             result = function("1")
 
             self.assertIn("latest_same_channel_summary:", result)
+            self.assertIn("Use this only as older background", result)
             self.assertIn("要約", result)
         finally:
             (temp_dir / "channel_summaries.jsonl").unlink(missing_ok=True)

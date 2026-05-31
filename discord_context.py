@@ -29,14 +29,11 @@ def format_discord_message(
     guild_name = message.guild.name if message.guild else "direct-message"
     clean_content = clean_message_content(message, bot_user)
     lines = [
-        "Discord mention",
+        "Discord message",
         f"guild: {guild_name} ({message.guild.id if message.guild else 'dm'})",
         f"channel: {channel_name} ({message.channel.id})",
+        "priority: Prefer current_message and recent_same_channel_context. Use supplemental summaries only as older background.",
     ]
-
-    summary_text = format_channel_summary_for_prompt(channel_summary)
-    if summary_text is not None:
-        lines.append(summary_text)
 
     if recent_messages:
         lines.append("recent_same_channel_context_oldest_first:")
@@ -59,5 +56,9 @@ def format_discord_message(
             f"content: {clean_content or message.content}",
         ]
     )
+
+    summary_text = format_channel_summary_for_prompt(channel_summary)
+    if summary_text is not None:
+        lines.append(summary_text)
 
     return "\n".join(lines)

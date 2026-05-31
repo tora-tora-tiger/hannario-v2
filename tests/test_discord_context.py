@@ -41,6 +41,7 @@ class DiscordContextTest(unittest.TestCase):
 
         text = format_discord_message(current_message, bot_user, recent_messages)
 
+        self.assertIn("priority: Prefer current_message", text)
         self.assertIn("recent_same_channel_context_oldest_first:", text)
         self.assertIn("bob (222): さっきの話です", text)
         self.assertIn("はんなり男 (999): 了解です", text)
@@ -62,9 +63,11 @@ class DiscordContextTest(unittest.TestCase):
 
         text = format_discord_message(current_message, bot_user, channel_summary=summary)
 
-        self.assertIn("latest_same_channel_summary:", text)
+        self.assertIn("supplemental_same_channel_summary:", text)
+        self.assertIn("Use this only as older background", text)
         self.assertIn("最近は天気の話をしている。", text)
         self.assertIn("current_message:", text)
+        self.assertLess(text.index("current_message:"), text.index("supplemental_same_channel_summary:"))
 
 
 if __name__ == "__main__":

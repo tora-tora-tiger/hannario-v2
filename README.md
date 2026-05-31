@@ -144,7 +144,8 @@ uv run python bot.py
 - On reply, the bot also sends up to `DISCORD_CONTEXT_MESSAGE_LIMIT` recent
   messages from the same channel as context. Set it to `0` to disable this.
 - If `DISCORD_INCLUDE_CHANNEL_SUMMARY=1`, the bot also sends the latest saved
-  same-channel summary from `logs/channel_summaries.jsonl`.
+  same-channel summary from `logs/channel_summaries.jsonl` as supplemental
+  background. Current and recent messages are marked as higher priority.
 - If `DISCORD_AUTO_SUMMARY_ENABLED=1`, the bot periodically summarizes
   observed channel messages and appends results to `logs/channel_summaries.jsonl`.
 - The bot replies in the same channel.
@@ -188,8 +189,8 @@ The bot logs mention conversations and non-mention user message observations.
 Only triggered conversations are sent directly to Letta.
 
 Triggered records in `logs/discord_mentions.jsonl` contain minimal Discord
-context, the recent channel context sent to Letta, the optional channel summary
-sent to Letta, the response trigger, and the bot reply.
+context, the recent channel context sent to Letta, the optional supplemental
+channel summary sent to Letta, the response trigger, and the bot reply.
 
 Observation records in `logs/discord_observations.jsonl` contain minimal
 Discord context and cleaned message content. They do not include bot replies

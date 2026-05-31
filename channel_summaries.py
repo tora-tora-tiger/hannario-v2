@@ -62,7 +62,8 @@ def format_channel_summary_for_prompt(record: dict[str, Any] | None) -> str | No
 
     return "\n".join(
         [
-            "latest_same_channel_summary:",
+            "supplemental_same_channel_summary:",
+            "note: Use this only as older background. Prefer current_message and recent_same_channel_context when they conflict.",
             f"channel: {channel_name} ({channel_id})",
             f"created_at: {created_at}",
             f"observed_range: {first_observed_at} -> {last_observed_at}",

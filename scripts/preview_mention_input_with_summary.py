@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
 
 def format_latest_channel_summary(summary: dict[str, Any] | None) -> str:
     if summary is None:
-        return "latest_same_channel_summary:\n(no saved summary)"
+        return "supplemental_same_channel_summary:\n(no saved summary)"
 
     channel_name = summary.get("channel_name") or "unknown-channel"
     channel_id = summary.get("channel_id") or "unknown-id"
@@ -46,7 +46,8 @@ def format_latest_channel_summary(summary: dict[str, Any] | None) -> str:
 
     return "\n".join(
         [
-            "latest_same_channel_summary:",
+            "supplemental_same_channel_summary:",
+            "note: Use this only as older background. Prefer current_message and recent_same_channel_context when they conflict.",
             f"channel: {channel_name} ({channel_id})",
             f"created_at: {created_at}",
             f"observed_range: {first_observed_at} -> {last_observed_at}",
@@ -85,15 +86,16 @@ def build_preview_input(
 
     return "\n".join(
         [
-            "Discord mention",
+            "Discord message",
             f"guild: {guild_name} ({guild_id})",
             f"channel: {channel_name} ({channel_id})",
-            "",
-            format_latest_channel_summary(summary),
+            "priority: Prefer current_message and recent_same_channel_context. Use supplemental summaries only as older background.",
             "",
             format_saved_recent_context(mention),
             "",
             format_current_message(mention),
+            "",
+            format_latest_channel_summary(summary),
         ]
     )
 
