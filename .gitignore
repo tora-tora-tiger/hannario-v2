@@ -1,6 +1,7 @@
 .env
 .env.letta
 .venv/
+logs/
 __pycache__/
 *.py[cod]
 .DS_Store

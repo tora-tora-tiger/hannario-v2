@@ -7,6 +7,7 @@ import discord
 from dotenv import load_dotenv
 from letta_client import Letta
 
+from conversation_log import log_mention_reply
 from letta_agent import ask_letta
 
 
@@ -90,6 +91,7 @@ class HannarioClient(discord.Client):
                 )
 
         await message.reply(reply, mention_author=False)
+        await asyncio.to_thread(log_mention_reply, message, self.user, reply)
 
 
 def main() -> None:

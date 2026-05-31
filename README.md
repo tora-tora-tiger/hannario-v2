@@ -160,6 +160,19 @@ uv run python bot.py
 - The bot replies in the same channel.
 - The bot ignores messages from itself and other bots.
 - If Letta fails, the bot sends a short fallback reply instead of crashing.
+- Mention conversations are appended to `logs/discord_mentions.jsonl`.
+
+## Conversation Logs
+
+The bot currently logs only messages that mention it. It does not log all server
+messages.
+
+Logs are written to `logs/discord_mentions.jsonl`, and `logs/` is ignored by
+git.
+
+Each JSONL record contains minimal Discord context and the bot reply. It does
+not include Discord tokens, OpenAI keys, Letta internal responses, raw Discord
+message dumps, or attachment contents.
 
 ## Not Implemented Yet
 
