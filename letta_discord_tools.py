@@ -176,6 +176,74 @@ def get_latest_discord_channel_summary(channel_id: str) -> str:
 '''
 
 
+GET_RECENT_DISCORD_INTERNAL_RESULTS_SOURCE = r'''LOG_DIR = globals().get("LOG_DIR", "/logs")
+
+
+def get_recent_discord_internal_results(
+    channel_id: str = "",
+    limit: int = 5,
+    kind: str = "all",
+) -> str:
+    """Get recent internal scheduled task results.
+
+    Args:
+        channel_id: Optional related Discord channel ID filter.
+        limit: Maximum number of results to return. Values are clamped to 1..20.
+        kind: One of all, think, observe, or follow_up.
+
+    Returns:
+        A text block of recent private internal results in oldest-first order.
+    """
+    import json
+    from collections import deque
+    from pathlib import Path
+
+    safe_limit = max(1, min(int(limit), 20))
+    safe_kind = str(kind or "all").strip().lower()
+    if safe_kind not in {"all", "think", "observe", "follow_up"}:
+        safe_kind = "all"
+    safe_channel_id = str(channel_id or "").strip()
+
+    path = Path(LOG_DIR) / "scheduled_tasks.jsonl"
+    if not path.exists():
+        return "No scheduled task log is available."
+
+    records = deque(maxlen=safe_limit)
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        record_kind = str(record.get("kind") or "post")
+        if record_kind == "post":
+            continue
+        if not record.get("internal_result"):
+            continue
+        if safe_kind != "all" and record_kind != safe_kind:
+            continue
+        if safe_channel_id and str(record.get("channel_id") or "") != safe_channel_id:
+            continue
+        records.append(record)
+
+    if not records:
+        return "No internal scheduled task results found."
+
+    lines = ["recent_internal_discord_results_oldest_first:"]
+    for record in records:
+        checked_at = record.get("checked_at") or "unknown-time"
+        task_id = record.get("task_id") or "-"
+        record_kind = record.get("kind") or "unknown-kind"
+        related_channel_id = record.get("channel_id") or "unknown-channel"
+        note = record.get("note") or record.get("message") or ""
+        result = " ".join(str(record.get("internal_result") or "").split())
+        lines.append(
+            f"- {checked_at} task=#{task_id} kind={record_kind} "
+            f"channel_id={related_channel_id} note={note} result={result}"
+        )
+
+    return "\n".join(lines)
+'''
+
+
 LIST_DISCORD_SCHEDULES_SOURCE = r'''DB_PATH = globals().get("DB_PATH", "/data/local.sqlite3")
 
 
@@ -581,6 +649,12 @@ LETTA_DISCORD_TOOL_SPECS = [
         name="get_latest_discord_channel_summary",
         description="Read the latest saved observation summary for one Discord channel.",
         source_code=GET_LATEST_DISCORD_CHANNEL_SUMMARY_SOURCE,
+    ),
+    LettaDiscordToolSpec(
+        name="get_recent_discord_internal_results",
+        description="Read recent private internal scheduled task results.",
+        source_code=GET_RECENT_DISCORD_INTERNAL_RESULTS_SOURCE,
+        tags=("hannario", "discord", "schedule", "internal", "read-only"),
     ),
     LettaDiscordToolSpec(
         name="list_discord_schedules",

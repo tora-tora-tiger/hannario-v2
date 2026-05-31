@@ -83,7 +83,7 @@ uv run python scripts/create_agent.py
 
 Copy the printed `LETTA_AGENT_ID=...` line into `.env`.
 
-Then register read-only Discord observation tools with the Letta agent:
+Then register Discord observation and schedule tools with the Letta agent:
 
 ```sh
 uv run python scripts/register_letta_discord_tools.py
@@ -94,6 +94,7 @@ The registered tools are:
 - `list_observed_discord_channels`
 - `get_recent_discord_observations`
 - `get_latest_discord_channel_summary`
+- `get_recent_discord_internal_results`
 - `list_discord_schedules`
 - `create_discord_schedule`
 - `create_internal_discord_schedule`
@@ -457,7 +458,6 @@ uv run python scripts/apply_playbook_append.py --proposal-json curator_proposal.
 ## Not Implemented Yet
 
 - Automatic curator apply or read-only memory write gate.
-- More advanced scheduled autonomous actions beyond heartbeat.
 - Discord write tools beyond sending replies.
 - Web or database tools.
 - Deployment or process supervision.

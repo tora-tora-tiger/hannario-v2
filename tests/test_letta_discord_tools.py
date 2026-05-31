@@ -108,6 +108,37 @@ class LettaDiscordToolsTest(unittest.TestCase):
             (temp_dir / "channel_summaries.jsonl").unlink(missing_ok=True)
             temp_dir.rmdir()
 
+    def test_get_recent_discord_internal_results_source(self) -> None:
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            (temp_dir / "scheduled_tasks.jsonl").write_text(
+                "\n".join(
+                    [
+                        '{"task_id":1,"kind":"post","channel_id":"1","internal_result":"ignore"}',
+                        '{"task_id":2,"kind":"think","channel_id":"1","checked_at":"2026-05-31T00:00:00+00:00","note":"あとで考える","internal_result":"考えた"}',
+                        '{"task_id":3,"kind":"observe","channel_id":"2","checked_at":"2026-05-31T00:01:00+00:00","note":"見る","internal_result":"見た"}',
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            spec = next(
+                spec
+                for spec in LETTA_DISCORD_TOOL_SPECS
+                if spec.name == "get_recent_discord_internal_results"
+            )
+            function = load_function(spec.source_code, spec.name, temp_dir)
+
+            result = function(channel_id="1", limit=10, kind="all")
+
+            self.assertIn("recent_internal_discord_results_oldest_first:", result)
+            self.assertIn("task=#2 kind=think", result)
+            self.assertIn("result=考えた", result)
+            self.assertNotIn("task=#1", result)
+            self.assertNotIn("task=#3", result)
+        finally:
+            (temp_dir / "scheduled_tasks.jsonl").unlink(missing_ok=True)
+            temp_dir.rmdir()
+
     def test_list_discord_schedules_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "local.sqlite3"
