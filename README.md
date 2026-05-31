@@ -96,6 +96,7 @@ The registered tools are:
 - `get_latest_discord_channel_summary`
 - `list_discord_schedules`
 - `create_discord_schedule`
+- `create_internal_discord_schedule`
 - `cancel_discord_schedule`
 
 ## Run The Bot

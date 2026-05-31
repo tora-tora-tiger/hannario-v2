@@ -188,6 +188,47 @@ class LettaDiscordToolsTest(unittest.TestCase):
             self.assertEqual(len(tasks), 1)
             self.assertEqual(tasks[0].message, "10分後です")
 
+    def test_create_internal_discord_schedule_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "local.sqlite3"
+            spec = next(
+                spec
+                for spec in LETTA_DISCORD_TOOL_SPECS
+                if spec.name == "create_internal_discord_schedule"
+            )
+            function = load_function(spec.source_code, spec.name, Path(temp_dir), db_path)
+
+            result = function(
+                kind="think",
+                note="この話題をあとで考える",
+                relative_minutes=10,
+                channel_id="123",
+            )
+            tasks = list_scheduled_tasks(db_path=db_path)
+
+            self.assertIn("Created internal Discord task #1", result)
+            self.assertEqual(len(tasks), 1)
+            self.assertEqual(tasks[0].kind, "think")
+            self.assertEqual(tasks[0].channel_id, "123")
+            self.assertEqual(tasks[0].message, "この話題をあとで考える")
+            self.assertEqual(tasks[0].note, "この話題をあとで考える")
+
+    def test_create_internal_discord_schedule_rejects_post_kind(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "local.sqlite3"
+            spec = next(
+                spec
+                for spec in LETTA_DISCORD_TOOL_SPECS
+                if spec.name == "create_internal_discord_schedule"
+            )
+            function = load_function(spec.source_code, spec.name, Path(temp_dir), db_path)
+
+            result = function(kind="post", note="bad", relative_minutes=10, channel_id="123")
+            tasks = list_scheduled_tasks(db_path=db_path, status="all")
+
+            self.assertIn("kind must be think, observe, or follow_up", result)
+            self.assertEqual(tasks, [])
+
     def test_cancel_discord_schedule_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "local.sqlite3"

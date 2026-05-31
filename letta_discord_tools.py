@@ -382,6 +382,141 @@ def create_discord_schedule(
 '''
 
 
+CREATE_INTERNAL_DISCORD_SCHEDULE_SOURCE = r'''DB_PATH = globals().get("DB_PATH", "/data/local.sqlite3")
+
+
+def create_internal_discord_schedule(
+    kind: str,
+    note: str,
+    due_at: str = "",
+    timezone: str = "Asia/Tokyo",
+    relative_minutes: int = 0,
+    channel_id: str = "internal",
+    message: str = "",
+) -> str:
+    """Create an internal scheduled task for the bot's future self.
+
+    Args:
+        kind: Internal kind. One of think, observe, or follow_up.
+        note: Internal note describing what the bot should think about later.
+        due_at: ISO timestamp. Naive values are interpreted in timezone.
+        timezone: IANA timezone for naive due_at values. Default is Asia/Tokyo.
+        relative_minutes: For requests like "10 minutes later", set this instead of
+            calculating due_at yourself. Values are clamped to 1..10080. Use 0 to ignore.
+        channel_id: Related Discord channel ID. Use current channel_id when available.
+        message: Optional short label. Defaults to note.
+
+    Returns:
+        A short confirmation including the created task id and stored UTC due_at.
+    """
+    import sqlite3
+    from datetime import UTC, datetime, timedelta
+    from pathlib import Path
+    from zoneinfo import ZoneInfo
+
+    safe_kind = str(kind or "").strip().lower()
+    if safe_kind not in {"think", "observe", "follow_up"}:
+        return "Failed to create internal schedule: kind must be think, observe, or follow_up."
+    if not str(note).strip():
+        return "Failed to create internal schedule: note is required."
+
+    try:
+        schedule_timezone = ZoneInfo(timezone)
+    except Exception:
+        return f"Failed to create internal schedule: unknown timezone {timezone}."
+
+    try:
+        safe_relative_minutes = int(relative_minutes)
+    except (TypeError, ValueError):
+        safe_relative_minutes = 0
+
+    if safe_relative_minutes:
+        safe_relative_minutes = max(1, min(safe_relative_minutes, 10080))
+        parsed_due_at = datetime.now(schedule_timezone) + timedelta(minutes=safe_relative_minutes)
+    else:
+        try:
+            parsed_due_at = datetime.fromisoformat(str(due_at))
+        except ValueError:
+            return "Failed to create internal schedule: due_at must be an ISO timestamp."
+
+        if parsed_due_at.tzinfo is None:
+            parsed_due_at = parsed_due_at.replace(tzinfo=schedule_timezone)
+
+    if parsed_due_at.astimezone(UTC) <= datetime.now(UTC) + timedelta(seconds=5):
+        return "Failed to create internal schedule: due_at is in the past or too close to now."
+
+    due_at_utc = parsed_due_at.astimezone(UTC).isoformat()
+    created_at = datetime.now(UTC).isoformat()
+    safe_channel_id = str(channel_id or "internal")
+    safe_message = str(message or note)
+
+    path = Path(DB_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scheduled_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id TEXT NOT NULL,
+                message TEXT NOT NULL,
+                due_at TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'done', 'cancelled')),
+                kind TEXT NOT NULL DEFAULT 'post',
+                created_at TEXT NOT NULL,
+                note TEXT,
+                created_by TEXT,
+                source_message_id TEXT,
+                completed_at TEXT,
+                cancelled_at TEXT
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_due_pending
+            ON scheduled_tasks (status, due_at)
+            """
+        )
+        column_names = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(scheduled_tasks)").fetchall()
+        }
+        if "kind" not in column_names:
+            connection.execute(
+                "ALTER TABLE scheduled_tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'post'"
+            )
+        if "note" not in column_names:
+            connection.execute("ALTER TABLE scheduled_tasks ADD COLUMN note TEXT")
+        cursor = connection.execute(
+            """
+            INSERT INTO scheduled_tasks (
+                channel_id,
+                message,
+                due_at,
+                status,
+                kind,
+                created_at,
+                note
+            )
+            VALUES (?, ?, ?, 'pending', ?, ?, ?)
+            """,
+            (safe_channel_id, safe_message, due_at_utc, safe_kind, created_at, str(note)),
+        )
+        connection.commit()
+        task_id = cursor.lastrowid
+    finally:
+        connection.close()
+
+    return (
+        f"Created internal Discord task #{task_id}: "
+        f"kind={safe_kind}, channel_id={safe_channel_id}, due_at={due_at_utc}, note={note}"
+    )
+'''
+
+
 CANCEL_DISCORD_SCHEDULE_SOURCE = r'''DB_PATH = globals().get("DB_PATH", "/data/local.sqlite3")
 
 
@@ -458,6 +593,12 @@ LETTA_DISCORD_TOOL_SPECS = [
         description="Create a scheduled Discord task in the local SQLite database.",
         source_code=CREATE_DISCORD_SCHEDULE_SOURCE,
         tags=("hannario", "discord", "schedule", "write"),
+    ),
+    LettaDiscordToolSpec(
+        name="create_internal_discord_schedule",
+        description="Create an internal scheduled task for the bot's future self.",
+        source_code=CREATE_INTERNAL_DISCORD_SCHEDULE_SOURCE,
+        tags=("hannario", "discord", "schedule", "write", "internal"),
     ),
     LettaDiscordToolSpec(
         name="cancel_discord_schedule",
