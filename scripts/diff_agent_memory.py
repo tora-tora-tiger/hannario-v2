@@ -1,8 +1,11 @@
 import argparse
-import json
-from difflib import unified_diff
+import sys
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from memory_snapshot import block_value, diff_snapshot_text, load_snapshot
 
 
 def parse_args() -> argparse.Namespace:
@@ -14,17 +17,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_snapshot(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def block_value(snapshot: dict[str, Any], label: str) -> str:
-    block = snapshot.get("blocks", {}).get(label)
-    if block is None:
-        return ""
-    return block.get("value") or ""
-
-
 def print_block_diff(
     label: str,
     before_value: str,
@@ -32,19 +24,15 @@ def print_block_diff(
     before_name: str,
     after_name: str,
 ) -> bool:
-    if before_value == after_value:
-        return False
-
-    print(f"## {label}")
-    diff = unified_diff(
-        before_value.splitlines(),
-        after_value.splitlines(),
-        fromfile=f"{before_name}:{label}",
-        tofile=f"{after_name}:{label}",
-        lineterm="",
+    text = diff_snapshot_text(
+        {"blocks": {label: {"value": before_value}}},
+        {"blocks": {label: {"value": after_value}}},
+        before_name,
+        after_name,
     )
-    for line in diff:
-        print(line)
+    if not text:
+        return False
+    print(text)
     print()
     return True
 

@@ -26,6 +26,7 @@ from heartbeat import (
     run_heartbeat_once,
 )
 from letta_agent import LettaToolEvent, ask_letta_with_diagnostics
+from memory_audit import audit_memory_write_events, has_memory_write_tool_call
 from response_policy import (
     ConversationStateStore,
     ResponseDecision,
@@ -140,12 +141,20 @@ def truncate_log_text(value: str | None, limit: int = 240) -> str:
 def log_letta_tool_events(discord_message_id: int, events: list[LettaToolEvent]) -> None:
     for event in events:
         if event.kind == "call":
-            logging.info(
-                "Letta tool call for Discord message %s: %s args=%s",
-                discord_message_id,
-                event.name,
-                truncate_log_text(event.arguments),
-            )
+            if has_memory_write_tool_call([event]):
+                logging.warning(
+                    "Letta memory write tool call for Discord message %s: %s args=%s",
+                    discord_message_id,
+                    event.name,
+                    truncate_log_text(event.arguments),
+                )
+            else:
+                logging.info(
+                    "Letta tool call for Discord message %s: %s args=%s",
+                    discord_message_id,
+                    event.name,
+                    truncate_log_text(event.arguments),
+                )
         elif event.kind == "return":
             logging.info(
                 "Letta tool return for Discord message %s: %s status=%s chars=%d preview=%s",
@@ -155,6 +164,37 @@ def log_letta_tool_events(discord_message_id: int, events: list[LettaToolEvent])
                 len(event.text or ""),
                 truncate_log_text(event.text),
             )
+
+
+def audit_letta_memory_writes(
+    letta_client: Letta,
+    letta_agent_id: str,
+    discord_message_id: int,
+    events: list[LettaToolEvent],
+) -> None:
+    record = audit_memory_write_events(
+        letta_client,
+        letta_agent_id,
+        discord_message_id,
+        events,
+    )
+    if record is None:
+        return
+
+    logging.warning(
+        "Saved Letta memory write audit for Discord message %s: snapshot=%s tools=%s",
+        discord_message_id,
+        record.get("snapshot_path"),
+        ", ".join(tool["name"] for tool in record.get("memory_write_tools", [])),
+    )
+
+    diff_text = record.get("diff") or ""
+    if diff_text:
+        logging.warning(
+            "Letta memory diff after Discord message %s:\n%s",
+            discord_message_id,
+            truncate_log_text(diff_text, limit=2000),
+        )
 
 
 async def fetch_recent_channel_messages(
@@ -413,6 +453,20 @@ class HannarioClient(discord.Client):
             else:
                 reply = letta_reply.text
                 log_letta_tool_events(message.id, letta_reply.tool_events)
+                if has_memory_write_tool_call(letta_reply.tool_events):
+                    try:
+                        await asyncio.to_thread(
+                            audit_letta_memory_writes,
+                            self.letta_client,
+                            self.letta_agent_id,
+                            message.id,
+                            letta_reply.tool_events,
+                        )
+                    except Exception:
+                        logging.exception(
+                            "Failed to audit Letta memory write for Discord message %s",
+                            message.id,
+                        )
                 logging.info(
                     "Received Letta reply for Discord message %s (%d chars)",
                     message.id,

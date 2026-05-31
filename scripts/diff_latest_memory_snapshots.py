@@ -1,7 +1,10 @@
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from diff_agent_memory import diff_snapshots, load_snapshot
-from snapshot_agent_memory import DEFAULT_SNAPSHOT_DIR
+from memory_snapshot import DEFAULT_SNAPSHOT_DIR
 
 
 def latest_snapshots(snapshot_dir: Path = DEFAULT_SNAPSHOT_DIR) -> tuple[Path, Path]:

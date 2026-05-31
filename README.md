@@ -176,6 +176,9 @@ uv run python bot.py
 - The bot ignores messages from itself and other bots.
 - If Letta fails, the bot sends a short fallback reply instead of crashing.
 - Letta tool calls and tool returns are logged by the bot when returned by Letta.
+- Letta memory write tool calls are logged as warnings, appended to
+  `logs/letta_memory_writes.jsonl`, and trigger a memory snapshot under
+  `memory_snapshots/`.
 - Triggered conversations are appended to `logs/discord_mentions.jsonl`.
 - Non-mention user messages are appended to `logs/discord_observations.jsonl`
   for observation only. They are not directly sent to Letta yet.
@@ -248,6 +251,7 @@ uv run python scripts/show_recent_observations.py
 uv run python scripts/show_recent_heartbeats.py
 uv run python scripts/list_observed_channels.py
 uv run python scripts/show_channel_summaries.py
+uv run python scripts/diff_latest_memory_snapshots.py
 ```
 
 Channel-specific inspection:
@@ -308,6 +312,10 @@ To diff the latest two snapshots:
 ```sh
 uv run python scripts/diff_latest_memory_snapshots.py
 ```
+
+When the bot detects Letta memory write tools such as `memory_insert` or
+`memory_replace`, it saves a snapshot automatically and writes an audit record
+to `logs/letta_memory_writes.jsonl`.
 
 To manually replace one memory block:
 
