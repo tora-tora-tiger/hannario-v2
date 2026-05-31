@@ -180,6 +180,12 @@ To show recent mention logs:
 uv run python scripts/show_recent_mentions.py
 ```
 
+To print recent logs as curator input text:
+
+```sh
+uv run python scripts/show_recent_mentions.py --limit 1 --curator-input
+```
+
 ## Not Implemented Yet
 
 - Curator or memory write gate.

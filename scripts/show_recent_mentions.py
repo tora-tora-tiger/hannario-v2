@@ -24,6 +24,11 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_LOG_PATH,
         help="Path to the mention JSONL log.",
     )
+    parser.add_argument(
+        "--curator-input",
+        action="store_true",
+        help="Print records as compact text suitable for curator dry-run input.",
+    )
     return parser.parse_args()
 
 
@@ -55,6 +60,14 @@ def print_record(record: dict[str, Any]) -> None:
     print(f"Bot: {bot_reply}")
 
 
+def print_curator_input(record: dict[str, Any]) -> None:
+    user_text = record.get("clean_content") or ""
+    bot_reply = record.get("bot_reply") or ""
+
+    print(f"ユーザー: {user_text}")
+    print(f"Bot: {bot_reply}")
+
+
 def main() -> None:
     args = parse_args()
 
@@ -71,7 +84,10 @@ def main() -> None:
     for index, record in enumerate(records):
         if index:
             print()
-        print_record(record)
+        if args.curator_input:
+            print_curator_input(record)
+        else:
+            print_record(record)
 
 
 if __name__ == "__main__":
