@@ -87,6 +87,7 @@ Then register Discord observation and schedule tools with the Letta agent:
 
 ```sh
 uv run python scripts/register_letta_discord_tools.py
+uv run python scripts/register_letta_db_tools.py
 ```
 
 The registered tools are:
@@ -99,6 +100,7 @@ The registered tools are:
 - `create_discord_schedule`
 - `create_internal_discord_schedule`
 - `cancel_discord_schedule`
+- `run_readonly_sql`
 
 ## Run The Bot
 
@@ -459,5 +461,6 @@ uv run python scripts/apply_playbook_append.py --proposal-json curator_proposal.
 
 - Automatic curator apply or read-only memory write gate.
 - Discord write tools beyond sending replies.
-- Web or database tools.
+- Writable database tools.
+- Web tools.
 - Deployment or process supervision.
