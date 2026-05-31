@@ -8,14 +8,18 @@ from unittest.mock import patch
 
 from heartbeat import (
     DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+    DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS,
     HeartbeatDecision,
     HeartbeatConfig,
+    HeartbeatResult,
     build_heartbeat_input,
+    decide_heartbeat_post,
     format_observation_record,
     load_heartbeat_config_from_env,
     parse_heartbeat_decision,
     parse_positive_int_env,
     read_recent_jsonl_records,
+    record_heartbeat_post,
     run_heartbeat_once,
 )
 
@@ -40,7 +44,10 @@ class HeartbeatTest(unittest.TestCase):
                 "DISCORD_HEARTBEAT_ENABLED": "1",
                 "DISCORD_HEARTBEAT_INTERVAL_SECONDS": "30",
                 "DISCORD_HEARTBEAT_CONSULT_LETTA_ENABLED": "1",
+                "DISCORD_HEARTBEAT_POST_ENABLED": "1",
                 "DISCORD_HEARTBEAT_OBSERVATION_LIMIT": "5",
+                "DISCORD_HEARTBEAT_POST_COOLDOWN_SECONDS": "60",
+                "DISCORD_HEARTBEAT_POST_MAX_CHARS": "80",
             },
         ):
             config = load_heartbeat_config_from_env()
@@ -48,7 +55,10 @@ class HeartbeatTest(unittest.TestCase):
         self.assertTrue(config.enabled)
         self.assertEqual(config.interval_seconds, 30)
         self.assertTrue(config.consult_letta_enabled)
+        self.assertTrue(config.post_enabled)
         self.assertEqual(config.observation_limit, 5)
+        self.assertEqual(config.post_cooldown_seconds, 60)
+        self.assertEqual(config.post_max_chars, 80)
 
     def test_parse_positive_int_env_uses_default_for_invalid_value(self) -> None:
         with (
@@ -204,6 +214,123 @@ class HeartbeatTest(unittest.TestCase):
 
         self.assertEqual(result.action, "none")
         self.assertEqual(result.reason, "特になし")
+
+    def test_decide_heartbeat_post_disabled(self) -> None:
+        result = HeartbeatResult(
+            checked_at="time",
+            action="consider_reply",
+            channel_id="123",
+            message="hello",
+        )
+
+        decision = decide_heartbeat_post(HeartbeatConfig(post_enabled=False), result, {})
+
+        self.assertFalse(decision.should_post)
+        self.assertEqual(decision.reason, "post_disabled")
+
+    def test_decide_heartbeat_post_requires_consider_reply(self) -> None:
+        result = HeartbeatResult(checked_at="time", action="none")
+
+        decision = decide_heartbeat_post(HeartbeatConfig(post_enabled=True), result, {})
+
+        self.assertFalse(decision.should_post)
+        self.assertEqual(decision.reason, "action=none")
+
+    def test_decide_heartbeat_post_requires_channel_and_message(self) -> None:
+        config = HeartbeatConfig(post_enabled=True)
+
+        missing_channel = decide_heartbeat_post(
+            config,
+            HeartbeatResult(checked_at="time", action="consider_reply", message="hello"),
+            {},
+        )
+        missing_message = decide_heartbeat_post(
+            config,
+            HeartbeatResult(checked_at="time", action="consider_reply", channel_id="123"),
+            {},
+        )
+
+        self.assertEqual(missing_channel.reason, "missing_channel_id")
+        self.assertEqual(missing_message.reason, "missing_message")
+
+    def test_decide_heartbeat_post_allows_valid_candidate(self) -> None:
+        result = HeartbeatResult(
+            checked_at="time",
+            action="consider_reply",
+            channel_id="123",
+            message=" hello ",
+        )
+
+        decision = decide_heartbeat_post(HeartbeatConfig(post_enabled=True), result, {})
+
+        self.assertTrue(decision.should_post)
+        self.assertEqual(decision.channel_id, "123")
+        self.assertEqual(decision.message, "hello")
+
+    def test_decide_heartbeat_post_truncates_message(self) -> None:
+        result = HeartbeatResult(
+            checked_at="time",
+            action="consider_reply",
+            channel_id="123",
+            message="abcdefghij",
+        )
+
+        decision = decide_heartbeat_post(
+            HeartbeatConfig(post_enabled=True, post_max_chars=5),
+            result,
+            {},
+        )
+
+        self.assertEqual(decision.message, "ab...")
+
+    def test_decide_heartbeat_post_truncates_very_short_max_chars(self) -> None:
+        result = HeartbeatResult(
+            checked_at="time",
+            action="consider_reply",
+            channel_id="123",
+            message="abcdefghij",
+        )
+
+        decision = decide_heartbeat_post(
+            HeartbeatConfig(post_enabled=True, post_max_chars=2),
+            result,
+            {},
+        )
+
+        self.assertEqual(decision.message, "ab")
+
+    def test_decide_heartbeat_post_respects_cooldown(self) -> None:
+        now = datetime(2026, 5, 31, 0, 0, tzinfo=UTC)
+        result = HeartbeatResult(
+            checked_at="time",
+            action="consider_reply",
+            channel_id="123",
+            message="hello",
+        )
+        last_post_at_by_channel = {
+            "123": now,
+        }
+
+        decision = decide_heartbeat_post(
+            HeartbeatConfig(
+                post_enabled=True,
+                post_cooldown_seconds=DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS,
+            ),
+            result,
+            last_post_at_by_channel,
+            now=now,
+        )
+
+        self.assertFalse(decision.should_post)
+        self.assertEqual(decision.reason, "post_cooldown")
+
+    def test_record_heartbeat_post(self) -> None:
+        now = datetime(2026, 5, 31, 0, 0, tzinfo=UTC)
+        last_post_at_by_channel: dict[str, datetime] = {}
+
+        record_heartbeat_post(last_post_at_by_channel, "123", now=now)
+
+        self.assertEqual(last_post_at_by_channel["123"], now)
 
 
 if __name__ == "__main__":

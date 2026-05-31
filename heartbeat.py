@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +14,8 @@ from letta_agent import RETURN_MESSAGE_TYPES, extract_assistant_text
 
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 900
 DEFAULT_HEARTBEAT_OBSERVATION_LIMIT = 20
+DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS = 3600
+DEFAULT_HEARTBEAT_POST_MAX_CHARS = 500
 DEFAULT_OBSERVATION_LOG_PATH = Path("logs/discord_observations.jsonl")
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 
@@ -23,7 +25,10 @@ class HeartbeatConfig:
     enabled: bool = False
     interval_seconds: int = DEFAULT_HEARTBEAT_INTERVAL_SECONDS
     consult_letta_enabled: bool = False
+    post_enabled: bool = False
     observation_limit: int = DEFAULT_HEARTBEAT_OBSERVATION_LIMIT
+    post_cooldown_seconds: int = DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS
+    post_max_chars: int = DEFAULT_HEARTBEAT_POST_MAX_CHARS
     observation_path: Path = DEFAULT_OBSERVATION_LOG_PATH
 
 
@@ -41,6 +46,14 @@ class HeartbeatResult:
 class HeartbeatDecision:
     action: str = "none"
     reason: str = ""
+    channel_id: str | None = None
+    message: str = ""
+
+
+@dataclass(frozen=True)
+class HeartbeatPostDecision:
+    should_post: bool
+    reason: str
     channel_id: str | None = None
     message: str = ""
 
@@ -77,9 +90,18 @@ def load_heartbeat_config_from_env() -> HeartbeatConfig:
             DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
         ),
         consult_letta_enabled=parse_bool_env("DISCORD_HEARTBEAT_CONSULT_LETTA_ENABLED"),
+        post_enabled=parse_bool_env("DISCORD_HEARTBEAT_POST_ENABLED"),
         observation_limit=parse_positive_int_env(
             "DISCORD_HEARTBEAT_OBSERVATION_LIMIT",
             DEFAULT_HEARTBEAT_OBSERVATION_LIMIT,
+        ),
+        post_cooldown_seconds=parse_positive_int_env(
+            "DISCORD_HEARTBEAT_POST_COOLDOWN_SECONDS",
+            DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS,
+        ),
+        post_max_chars=parse_positive_int_env(
+            "DISCORD_HEARTBEAT_POST_MAX_CHARS",
+            DEFAULT_HEARTBEAT_POST_MAX_CHARS,
         ),
     )
 
@@ -189,6 +211,66 @@ def parse_legacy_heartbeat_decision(text: str) -> HeartbeatDecision:
     elif "action=none" in text:
         action = "none"
     return HeartbeatDecision(action=action, reason=text)
+
+
+def truncate_message(message: str, max_chars: int) -> str:
+    stripped = " ".join(message.split())
+    if len(stripped) <= max_chars:
+        return stripped
+    if max_chars <= 3:
+        return stripped[:max_chars]
+    return stripped[: max(0, max_chars - 3)] + "..."
+
+
+def decide_heartbeat_post(
+    config: HeartbeatConfig,
+    result: HeartbeatResult,
+    last_post_at_by_channel: dict[str, datetime],
+    *,
+    now: datetime | None = None,
+) -> HeartbeatPostDecision:
+    if not config.post_enabled:
+        return HeartbeatPostDecision(False, "post_disabled")
+
+    if result.action != "consider_reply":
+        return HeartbeatPostDecision(False, f"action={result.action}")
+
+    if not result.channel_id:
+        return HeartbeatPostDecision(False, "missing_channel_id")
+
+    message = truncate_message(result.message, config.post_max_chars)
+    if not message:
+        return HeartbeatPostDecision(False, "missing_message", channel_id=result.channel_id)
+
+    actual_now = now or datetime.now(UTC)
+    if actual_now.tzinfo is None:
+        actual_now = actual_now.replace(tzinfo=UTC)
+
+    last_post_at = last_post_at_by_channel.get(result.channel_id)
+    if last_post_at is not None:
+        last_post_at = last_post_at.astimezone(UTC)
+        cooldown_until = last_post_at + timedelta(seconds=config.post_cooldown_seconds)
+        if cooldown_until > actual_now.astimezone(UTC):
+            return HeartbeatPostDecision(False, "post_cooldown", channel_id=result.channel_id)
+
+    return HeartbeatPostDecision(
+        True,
+        "ok",
+        channel_id=result.channel_id,
+        message=message,
+    )
+
+
+def record_heartbeat_post(
+    last_post_at_by_channel: dict[str, datetime],
+    channel_id: str,
+    *,
+    now: datetime | None = None,
+) -> None:
+    actual_now = now or datetime.now(UTC)
+    if actual_now.tzinfo is None:
+        actual_now = actual_now.replace(tzinfo=UTC)
+    last_post_at_by_channel[channel_id] = actual_now.astimezone(UTC)
 
 
 def run_heartbeat_once(

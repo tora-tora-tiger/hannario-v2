@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import random
+from datetime import datetime
 from typing import Any
 
 import discord
@@ -15,7 +16,13 @@ from auto_channel_summary import (
 )
 from channel_summaries import read_latest_channel_summary
 from conversation_log import log_mention_reply, log_observed_message
-from heartbeat import HeartbeatConfig, load_heartbeat_config_from_env, run_heartbeat_once
+from heartbeat import (
+    HeartbeatConfig,
+    decide_heartbeat_post,
+    load_heartbeat_config_from_env,
+    record_heartbeat_post,
+    run_heartbeat_once,
+)
 from letta_agent import LettaToolEvent, ask_letta_with_diagnostics
 from response_policy import (
     ConversationStateStore,
@@ -198,6 +205,7 @@ class HannarioClient(discord.Client):
         self.heartbeat_config = heartbeat_config
         self.response_policy_config = response_policy_config
         self.conversation_states: ConversationStateStore = {}
+        self.heartbeat_post_times: dict[str, datetime] = {}
         self.auto_summary_task: asyncio.Task[None] | None = None
         self.heartbeat_task: asyncio.Task[None] | None = None
 
@@ -236,6 +244,8 @@ class HannarioClient(discord.Client):
                 self.heartbeat_config,
                 self.letta_client,
                 self.letta_agent_id,
+                self,
+                self.heartbeat_post_times,
             ),
         )
         logging.info(
@@ -380,19 +390,78 @@ async def run_heartbeat_loop(
     config: HeartbeatConfig,
     letta_client: Letta,
     letta_agent_id: str | None,
+    discord_client: discord.Client,
+    last_post_at_by_channel: dict[str, datetime],
 ) -> None:
     while True:
         try:
-            await asyncio.to_thread(
+            result = await asyncio.to_thread(
                 run_heartbeat_once,
                 config,
                 client=letta_client,
                 agent_id=letta_agent_id,
             )
+            await maybe_post_heartbeat_result(
+                config,
+                result,
+                discord_client,
+                last_post_at_by_channel,
+            )
         except Exception:
             logging.exception("Discord heartbeat run failed")
 
         await asyncio.sleep(config.interval_seconds)
+
+
+async def maybe_post_heartbeat_result(
+    config: HeartbeatConfig,
+    result,
+    discord_client: discord.Client,
+    last_post_at_by_channel: dict[str, datetime],
+) -> None:
+    post_decision = decide_heartbeat_post(config, result, last_post_at_by_channel)
+    if not post_decision.should_post:
+        if result.action == "consider_reply":
+            logging.info(
+                "Skipping heartbeat post: reason=%s channel_id=%s",
+                post_decision.reason,
+                post_decision.channel_id,
+            )
+        return
+
+    assert post_decision.channel_id is not None
+    try:
+        channel_id = int(post_decision.channel_id)
+    except ValueError:
+        logging.warning(
+            "Skipping heartbeat post because channel_id is invalid: %s",
+            post_decision.channel_id,
+        )
+        return
+
+    channel = discord_client.get_channel(channel_id)
+    if channel is None:
+        try:
+            channel = await discord_client.fetch_channel(channel_id)
+        except (discord.Forbidden, discord.HTTPException, discord.NotFound):
+            logging.warning(
+                "Skipping heartbeat post because channel %s could not be fetched",
+                post_decision.channel_id,
+                exc_info=True,
+            )
+            return
+
+    send = getattr(channel, "send", None)
+    if send is None:
+        logging.warning(
+            "Skipping heartbeat post because channel %s cannot send messages",
+            post_decision.channel_id,
+        )
+        return
+
+    await send(post_decision.message)
+    record_heartbeat_post(last_post_at_by_channel, post_decision.channel_id)
+    logging.info("Posted heartbeat message to channel %s", post_decision.channel_id)
 
 
 def main() -> None:

@@ -121,6 +121,9 @@ DISCORD_HEARTBEAT_ENABLED=0
 DISCORD_HEARTBEAT_INTERVAL_SECONDS=900
 DISCORD_HEARTBEAT_CONSULT_LETTA_ENABLED=0
 DISCORD_HEARTBEAT_OBSERVATION_LIMIT=20
+DISCORD_HEARTBEAT_POST_ENABLED=0
+DISCORD_HEARTBEAT_POST_COOLDOWN_SECONDS=3600
+DISCORD_HEARTBEAT_POST_MAX_CHARS=500
 ```
 
 Then run:
@@ -157,7 +160,8 @@ uv run python bot.py
   By default this logs only and does not post to Discord. If
   `DISCORD_HEARTBEAT_CONSULT_LETTA_ENABLED=1`, heartbeat sends recent
   observations to Letta for a private status check and logs the structured
-  decision.
+  decision. If `DISCORD_HEARTBEAT_POST_ENABLED=1`, valid `consider_reply`
+  decisions may be posted to Discord with a per-channel cooldown.
 - The bot replies in the same channel.
 - The bot ignores messages from itself and other bots.
 - If Letta fails, the bot sends a short fallback reply instead of crashing.
