@@ -77,6 +77,14 @@ To inspect the agent's current memory blocks:
 uv run python scripts/show_agent_memory.py
 ```
 
+To manually replace one memory block:
+
+```sh
+uv run python scripts/update_memory_block.py playbook "New full playbook text"
+```
+
+This replaces the entire block value. It is not an append operation.
+
 ## Run The Bot
 
 Make sure `.env` contains:
