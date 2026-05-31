@@ -74,7 +74,8 @@ trusted.
 ## Current Stub
 
 `scripts/curator_dry_run.py` is a rule-based stub. It does not call an LLM and
-does not write memory.
+does not write memory. It reads the current `playbook` block only to propose the
+next stable ID.
 
 The stub only checks for simple Japanese keywords such as "覚えて", "今後",
 "呼んで", and "やめて". Treat its output as a CLI shape test, not a trusted
