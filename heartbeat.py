@@ -17,6 +17,7 @@ DEFAULT_HEARTBEAT_OBSERVATION_LIMIT = 20
 DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS = 3600
 DEFAULT_HEARTBEAT_POST_MAX_CHARS = 500
 DEFAULT_OBSERVATION_LOG_PATH = Path("logs/discord_observations.jsonl")
+DEFAULT_HEARTBEAT_LOG_PATH = Path("logs/discord_heartbeats.jsonl")
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 
 
@@ -30,6 +31,7 @@ class HeartbeatConfig:
     post_cooldown_seconds: int = DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS
     post_max_chars: int = DEFAULT_HEARTBEAT_POST_MAX_CHARS
     observation_path: Path = DEFAULT_OBSERVATION_LOG_PATH
+    log_path: Path = DEFAULT_HEARTBEAT_LOG_PATH
 
 
 @dataclass(frozen=True)
@@ -229,11 +231,11 @@ def decide_heartbeat_post(
     *,
     now: datetime | None = None,
 ) -> HeartbeatPostDecision:
-    if not config.post_enabled:
-        return HeartbeatPostDecision(False, "post_disabled")
-
     if result.action != "consider_reply":
         return HeartbeatPostDecision(False, f"action={result.action}")
+
+    if not config.post_enabled:
+        return HeartbeatPostDecision(False, "post_disabled")
 
     if not result.channel_id:
         return HeartbeatPostDecision(False, "missing_channel_id")
@@ -271,6 +273,35 @@ def record_heartbeat_post(
     if actual_now.tzinfo is None:
         actual_now = actual_now.replace(tzinfo=UTC)
     last_post_at_by_channel[channel_id] = actual_now.astimezone(UTC)
+
+
+def heartbeat_log_record(
+    result: HeartbeatResult,
+    post_decision: HeartbeatPostDecision,
+) -> dict[str, Any]:
+    return {
+        "checked_at": result.checked_at,
+        "action": result.action,
+        "reason": result.reason,
+        "channel_id": result.channel_id,
+        "message": result.message,
+        "post_should_post": post_decision.should_post,
+        "post_reason": post_decision.reason,
+        "post_channel_id": post_decision.channel_id,
+        "post_message": post_decision.message,
+    }
+
+
+def append_heartbeat_log(
+    path: Path,
+    result: HeartbeatResult,
+    post_decision: HeartbeatPostDecision,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = heartbeat_log_record(result, post_decision)
+    with path.open("a", encoding="utf-8") as file:
+        file.write(json.dumps(record, ensure_ascii=False, sort_keys=True))
+        file.write("\n")
 
 
 def run_heartbeat_once(

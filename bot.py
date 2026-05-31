@@ -18,6 +18,8 @@ from channel_summaries import read_latest_channel_summary
 from conversation_log import log_mention_reply, log_observed_message
 from heartbeat import (
     HeartbeatConfig,
+    HeartbeatPostDecision,
+    append_heartbeat_log,
     decide_heartbeat_post,
     load_heartbeat_config_from_env,
     record_heartbeat_post,
@@ -401,11 +403,17 @@ async def run_heartbeat_loop(
                 client=letta_client,
                 agent_id=letta_agent_id,
             )
-            await maybe_post_heartbeat_result(
+            post_decision = await maybe_post_heartbeat_result(
                 config,
                 result,
                 discord_client,
                 last_post_at_by_channel,
+            )
+            await asyncio.to_thread(
+                append_heartbeat_log,
+                config.log_path,
+                result,
+                post_decision,
             )
         except Exception:
             logging.exception("Discord heartbeat run failed")
@@ -418,7 +426,7 @@ async def maybe_post_heartbeat_result(
     result,
     discord_client: discord.Client,
     last_post_at_by_channel: dict[str, datetime],
-) -> None:
+) -> HeartbeatPostDecision:
     post_decision = decide_heartbeat_post(config, result, last_post_at_by_channel)
     if not post_decision.should_post:
         if result.action == "consider_reply":
@@ -427,7 +435,7 @@ async def maybe_post_heartbeat_result(
                 post_decision.reason,
                 post_decision.channel_id,
             )
-        return
+        return post_decision
 
     assert post_decision.channel_id is not None
     try:
@@ -437,7 +445,12 @@ async def maybe_post_heartbeat_result(
             "Skipping heartbeat post because channel_id is invalid: %s",
             post_decision.channel_id,
         )
-        return
+        return HeartbeatPostDecision(
+            False,
+            "invalid_channel_id",
+            channel_id=post_decision.channel_id,
+            message=post_decision.message,
+        )
 
     channel = discord_client.get_channel(channel_id)
     if channel is None:
@@ -449,7 +462,12 @@ async def maybe_post_heartbeat_result(
                 post_decision.channel_id,
                 exc_info=True,
             )
-            return
+            return HeartbeatPostDecision(
+                False,
+                "fetch_failed",
+                channel_id=post_decision.channel_id,
+                message=post_decision.message,
+            )
 
     send = getattr(channel, "send", None)
     if send is None:
@@ -457,11 +475,17 @@ async def maybe_post_heartbeat_result(
             "Skipping heartbeat post because channel %s cannot send messages",
             post_decision.channel_id,
         )
-        return
+        return HeartbeatPostDecision(
+            False,
+            "cannot_send",
+            channel_id=post_decision.channel_id,
+            message=post_decision.message,
+        )
 
     await send(post_decision.message)
     record_heartbeat_post(last_post_at_by_channel, post_decision.channel_id)
     logging.info("Posted heartbeat message to channel %s", post_decision.channel_id)
+    return post_decision
 
 
 def main() -> None:

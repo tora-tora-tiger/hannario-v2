@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -9,12 +10,16 @@ from unittest.mock import patch
 from heartbeat import (
     DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
     DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS,
+    DEFAULT_HEARTBEAT_LOG_PATH,
     HeartbeatDecision,
     HeartbeatConfig,
+    HeartbeatPostDecision,
     HeartbeatResult,
+    append_heartbeat_log,
     build_heartbeat_input,
     decide_heartbeat_post,
     format_observation_record,
+    heartbeat_log_record,
     load_heartbeat_config_from_env,
     parse_heartbeat_decision,
     parse_positive_int_env,
@@ -34,6 +39,7 @@ class HeartbeatTest(unittest.TestCase):
             HeartbeatConfig(
                 enabled=False,
                 interval_seconds=DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+                log_path=DEFAULT_HEARTBEAT_LOG_PATH,
             ),
         )
 
@@ -331,6 +337,39 @@ class HeartbeatTest(unittest.TestCase):
         record_heartbeat_post(last_post_at_by_channel, "123", now=now)
 
         self.assertEqual(last_post_at_by_channel["123"], now)
+
+    def test_heartbeat_log_record(self) -> None:
+        result = HeartbeatResult(
+            checked_at="checked",
+            letta_reply='{"action":"none"}',
+            action="none",
+            reason="特になし",
+        )
+        post_decision = HeartbeatPostDecision(False, "action=none")
+
+        record = heartbeat_log_record(result, post_decision)
+
+        self.assertEqual(record["checked_at"], "checked")
+        self.assertEqual(record["action"], "none")
+        self.assertEqual(record["reason"], "特になし")
+        self.assertNotIn("letta_reply", record)
+        self.assertFalse(record["post_should_post"])
+        self.assertEqual(record["post_reason"], "action=none")
+
+    def test_append_heartbeat_log(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "heartbeats.jsonl"
+            append_heartbeat_log(
+                path,
+                HeartbeatResult(checked_at="checked", action="none"),
+                HeartbeatPostDecision(False, "action=none"),
+            )
+
+            records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["checked_at"], "checked")
+        self.assertEqual(records[0]["post_reason"], "action=none")
 
 
 if __name__ == "__main__":

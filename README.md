@@ -212,6 +212,8 @@ because no reply is generated.
 
 Saved summaries are appended to `logs/channel_summaries.jsonl`.
 
+Heartbeat decisions are appended to `logs/discord_heartbeats.jsonl`.
+
 Logs do not include Discord tokens, OpenAI keys, Letta internal responses, raw
 Discord message dumps, or attachment contents.
 
@@ -233,6 +235,7 @@ Useful commands:
 ```sh
 uv run python scripts/show_recent_mentions.py
 uv run python scripts/show_recent_observations.py
+uv run python scripts/show_recent_heartbeats.py
 uv run python scripts/list_observed_channels.py
 uv run python scripts/show_channel_summaries.py
 ```
