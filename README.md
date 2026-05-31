@@ -141,6 +141,7 @@ uv run python bot.py
   `DISCORD_RANDOM_REPLY_RATE`, ignores short messages and commands, and has a
   per-channel cooldown.
 - On reply, the bot sends the cleaned Discord message context to Letta.
+- The Letta input includes exact current time in UTC and Asia/Tokyo local time.
 - On reply, the bot also sends up to `DISCORD_CONTEXT_MESSAGE_LIMIT` recent
   messages from the same channel as context. Set it to `0` to disable this.
 - If `DISCORD_INCLUDE_CHANNEL_SUMMARY=1`, the bot also sends the latest saved

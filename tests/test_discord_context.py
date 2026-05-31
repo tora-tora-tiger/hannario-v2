@@ -2,7 +2,7 @@ import unittest
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
-from discord_context import clean_message_content, format_discord_message
+from discord_context import clean_message_content, current_time_context, format_discord_message
 
 
 def fake_message(
@@ -42,6 +42,8 @@ class DiscordContextTest(unittest.TestCase):
         text = format_discord_message(current_message, bot_user, recent_messages)
 
         self.assertIn("priority: Prefer current_message", text)
+        self.assertIn("current_time:", text)
+        self.assertIn("local_timezone: Asia/Tokyo", text)
         self.assertIn("recent_same_channel_context_oldest_first:", text)
         self.assertIn("bob (222): さっきの話です", text)
         self.assertIn("はんなり男 (999): 了解です", text)
@@ -68,6 +70,14 @@ class DiscordContextTest(unittest.TestCase):
         self.assertIn("最近は天気の話をしている。", text)
         self.assertIn("current_message:", text)
         self.assertLess(text.index("current_message:"), text.index("supplemental_same_channel_summary:"))
+
+    def test_current_time_context_includes_utc_and_local_time(self) -> None:
+        text = current_time_context(datetime(2026, 5, 31, 0, 0, tzinfo=UTC))
+
+        self.assertIn("current_time:", text)
+        self.assertIn("utc: 2026-05-31T00:00:00+00:00", text)
+        self.assertIn("local: 2026-05-31T09:00:00+09:00", text)
+        self.assertIn("local_timezone: Asia/Tokyo", text)
 
 
 if __name__ == "__main__":

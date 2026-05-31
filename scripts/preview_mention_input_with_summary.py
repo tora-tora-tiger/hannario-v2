@@ -6,6 +6,7 @@ from show_channel_summaries import (
     DEFAULT_SUMMARY_LOG_PATH,
     read_recent_summary_records,
 )
+from discord_context import current_time_context
 from show_context_debug import format_saved_recent_context
 from show_recent_mentions import DEFAULT_LOG_PATH, read_recent_records
 
@@ -90,6 +91,7 @@ def build_preview_input(
             f"guild: {guild_name} ({guild_id})",
             f"channel: {channel_name} ({channel_id})",
             "priority: Prefer current_message and recent_same_channel_context. Use supplemental summaries only as older background.",
+            current_time_context(),
             "",
             format_saved_recent_context(mention),
             "",

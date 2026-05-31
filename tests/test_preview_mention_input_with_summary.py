@@ -70,6 +70,8 @@ class PreviewMentionInputWithSummaryTest(unittest.TestCase):
 
         self.assertIn("Discord message", text)
         self.assertIn("priority: Prefer current_message", text)
+        self.assertIn("current_time:", text)
+        self.assertIn("local_timezone: Asia/Tokyo", text)
         self.assertIn("supplemental_same_channel_summary:", text)
         self.assertIn("saved_discord_api_recent_context_oldest_first:", text)
         self.assertIn("current_message:", text)
