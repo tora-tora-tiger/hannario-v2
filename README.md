@@ -341,8 +341,10 @@ uv run python scripts/eval_curator_stub.py
 uv run python scripts/eval_curator_llm.py
 uv run python scripts/show_recent_mentions.py --limit 1 --curator-input
 uv run python scripts/curate_recent_mentions.py --limit 1
+uv run python scripts/curate_recent_mentions.py --limit 1 --output curator_proposal.json
 uv run python scripts/preview_memory_apply.py "P006: ユーザーが希望した呼び方を尊重する。"
 uv run python scripts/apply_playbook_append.py "P006: ユーザーが希望した呼び方を尊重する。"
+uv run python scripts/apply_playbook_append.py --proposal-json curator_proposal.json
 ```
 
 `eval_curator_llm.py`, `curator_llm_dry_run.py`, and
@@ -352,7 +354,6 @@ uv run python scripts/apply_playbook_append.py "P006: ユーザーが希望し�
 ## Not Implemented Yet
 
 - Automatic curator apply or read-only memory write gate.
-- Curator proposal parsing directly from JSON files.
 - More advanced scheduled autonomous actions beyond heartbeat.
 - Discord write tools beyond sending replies.
 - Web or database tools.

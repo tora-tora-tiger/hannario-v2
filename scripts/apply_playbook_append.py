@@ -1,10 +1,13 @@
 import argparse
+import json
 import re
+from pathlib import Path
 
 from dotenv import load_dotenv
 from letta_client import Letta
 
 from curator_memory import require_agent_id
+from curator_schema import CuratorProposal
 from letta_settings import letta_base_url
 from preview_memory_apply import append_preview
 
@@ -18,7 +21,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "proposal",
+        nargs="?",
         help="Full playbook line to append, e.g. 'P006: ...'.",
+    )
+    parser.add_argument(
+        "--proposal-json",
+        type=Path,
+        help="Path to a curator proposal JSON file. Must be append/playbook.",
     )
     parser.add_argument(
         "--yes",
@@ -26,6 +35,23 @@ def parse_args() -> argparse.Namespace:
         help="Apply without interactive confirmation.",
     )
     return parser.parse_args()
+
+
+def proposal_from_json_text(text: str) -> str:
+    proposal = CuratorProposal.model_validate(json.loads(text))
+    if proposal.action != "append" or proposal.target != "playbook" or proposal.proposal is None:
+        raise ValueError("Curator proposal JSON must be action=append and target=playbook.")
+    return proposal.proposal
+
+
+def proposal_from_args(args: argparse.Namespace) -> str:
+    if args.proposal_json is not None and args.proposal is not None:
+        raise ValueError("Use either positional proposal or --proposal-json, not both.")
+    if args.proposal_json is None and args.proposal is None:
+        raise ValueError("Provide a proposal line or --proposal-json.")
+    if args.proposal_json is not None:
+        return proposal_from_json_text(args.proposal_json.read_text(encoding="utf-8"))
+    return args.proposal
 
 
 def validate_playbook_append(proposal: str) -> str:
@@ -55,7 +81,10 @@ def confirm_apply(proposal: str) -> None:
 def main() -> None:
     load_dotenv()
     args = parse_args()
-    proposal = validate_playbook_append(args.proposal)
+    try:
+        proposal = validate_playbook_append(proposal_from_args(args))
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
 
     agent_id = require_agent_id()
     client = Letta(base_url=letta_base_url())

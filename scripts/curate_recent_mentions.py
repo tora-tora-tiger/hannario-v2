@@ -23,6 +23,11 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_LOG_PATH,
         help="Path to the mention JSONL log.",
     )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path to write the curator proposal JSON.",
+    )
     return parser.parse_args()
 
 
@@ -51,6 +56,11 @@ def records_to_curator_input(records: list[dict]) -> str:
     return "\n\n".join(record_to_curator_text(record) for record in records)
 
 
+def write_proposal_json(path: Path, proposal_json: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"{proposal_json.rstrip()}\n", encoding="utf-8")
+
+
 def main() -> None:
     args = parse_args()
 
@@ -71,7 +81,13 @@ def main() -> None:
     print(curator_input)
     print()
     print("Proposal:")
-    print(proposal.model_dump_json(indent=2))
+    proposal_json = proposal.model_dump_json(indent=2)
+    print(proposal_json)
+
+    if args.output is not None:
+        write_proposal_json(args.output, proposal_json)
+        print()
+        print(f"Wrote proposal JSON to {args.output}")
 
     if proposal.action == "append" and proposal.proposal is not None:
         preview = append_preview(get_playbook_value(), proposal.proposal)
