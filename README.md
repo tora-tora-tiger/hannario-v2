@@ -121,6 +121,14 @@ uv run python scripts/eval_curator_llm.py
 
 This uses the OpenAI API once per example and does not write memory.
 
+To preview appending a proposal to the playbook:
+
+```sh
+uv run python scripts/preview_memory_apply.py "P006: ユーザーが希望した呼び方を尊重する。"
+```
+
+This reads memory but does not write memory.
+
 To test the LLM curator dry-run:
 
 ```sh
