@@ -186,6 +186,12 @@ To print recent logs as curator input text:
 uv run python scripts/show_recent_mentions.py --limit 1 --curator-input
 ```
 
+To run the LLM curator dry-run on recent mention logs and show an append preview:
+
+```sh
+uv run python scripts/curate_recent_mentions.py --limit 1
+```
+
 ## Not Implemented Yet
 
 - Curator or memory write gate.
