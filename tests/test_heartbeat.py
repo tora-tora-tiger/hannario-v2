@@ -138,9 +138,11 @@ class HeartbeatTest(unittest.TestCase):
 
         self.assertIn("Discord heartbeat", text)
         self.assertIn("current_time:", text)
-        self.assertIn("Do not send a Discord message.", text)
+        self.assertIn("not sending a Discord message directly", text)
         self.assertIn("Return JSON only.", text)
+        self.assertIn('Default to action "none".', text)
         self.assertIn('"consider_reply"', text)
+        self.assertIn("Bad reasons: repeated content", text)
         self.assertIn("recent_observations_oldest_first:", text)
         self.assertIn("alice (111): hello", text)
 
