@@ -74,6 +74,37 @@ The initial apply path is manual:
 Automatic writes are intentionally out of scope until the curator behavior is
 trusted.
 
+## Manual Memory Update Flow
+
+1. Run the curator:
+
+   ```sh
+   uv run python scripts/curator_llm_dry_run.py "ユーザー: 今後はけいたいとって呼んで"
+   ```
+
+2. Review the returned JSON. Do not apply it blindly.
+
+3. Preview the proposed append:
+
+   ```sh
+   uv run python scripts/preview_memory_apply.py "P006: ユーザーが希望した呼び方を尊重する。"
+   ```
+
+4. If accepted, copy the full previewed playbook and replace the `playbook`
+   block manually:
+
+   ```sh
+   uv run python scripts/update_memory_block.py playbook "FULL PLAYBOOK TEXT"
+   ```
+
+5. Verify the memory:
+
+   ```sh
+   uv run python scripts/show_agent_memory.py
+   ```
+
+Never skip human review. Curator proposals are suggestions, not trusted writes.
+
 ## Current Stub
 
 `scripts/curator_dry_run.py` is a rule-based stub. It does not call an LLM and
