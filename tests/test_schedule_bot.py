@@ -2,9 +2,11 @@ import tempfile
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from bot import run_due_scheduled_tasks_once, send_channel_message
-from schedule_db import create_scheduled_task, get_scheduled_task
+from bot import maybe_handle_direct_schedule_request, run_due_scheduled_tasks_once, send_channel_message
+from schedule_db import create_scheduled_task, get_scheduled_task, list_scheduled_tasks
 from schedule_runner import ScheduleConfig
 
 
@@ -82,6 +84,42 @@ class ScheduleBotTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(updated_task.status, "done")
         self.assertIn('"should_send": true', log_text)
         self.assertIn('"status_after": "done"', log_text)
+
+    async def test_maybe_handle_direct_schedule_request_creates_relative_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "local.sqlite3"
+            message = SimpleNamespace(
+                id=999,
+                content="<@111> 10分後に「直接登録」って言って",
+                channel=SimpleNamespace(id=123),
+                author=SimpleNamespace(id=456),
+            )
+            bot_user = SimpleNamespace(id=111)
+
+            with patch.dict("os.environ", {"HANNARIO_DB_PATH": str(db_path)}):
+                reply = await maybe_handle_direct_schedule_request(message, bot_user)  # type: ignore[arg-type]
+                tasks = list_scheduled_tasks(db_path=db_path)
+
+        self.assertIsNotNone(reply)
+        assert reply is not None
+        self.assertIn("10分後", reply)
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0].message, "直接登録")
+        self.assertEqual(tasks[0].created_by, "456")
+        self.assertEqual(tasks[0].source_message_id, "999")
+
+    async def test_maybe_handle_direct_schedule_request_asks_for_ambiguous_time(self) -> None:
+        message = SimpleNamespace(
+            id=999,
+            content="<@111> 夕方に「曖昧」って言って",
+            channel=SimpleNamespace(id=123),
+            author=SimpleNamespace(id=456),
+        )
+        bot_user = SimpleNamespace(id=111)
+
+        reply = await maybe_handle_direct_schedule_request(message, bot_user)  # type: ignore[arg-type]
+
+        self.assertEqual(reply, "「曖昧」は何時に言えばいい？夕方だと少し曖昧だから、具体的な時刻で教えて。")
 
 
 if __name__ == "__main__":

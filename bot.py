@@ -2,8 +2,9 @@ import asyncio
 import logging
 import os
 import random
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import discord
 from dotenv import load_dotenv
@@ -16,6 +17,7 @@ from auto_channel_summary import (
 )
 from channel_summaries import read_latest_channel_summary
 from conversation_log import log_mention_reply, log_observed_message
+from discord_context import clean_message_content
 from heartbeat import (
     HeartbeatConfig,
     HeartbeatPostDecision,
@@ -37,7 +39,8 @@ from response_policy import (
     load_response_policy_config_from_env,
     mark_channel_active,
 )
-from schedule_db import list_due_scheduled_tasks, mark_scheduled_task_done
+from schedule_db import create_scheduled_task, db_path_from_env, list_due_scheduled_tasks, mark_scheduled_task_done
+from schedule_intent import parse_ambiguous_schedule_intent, parse_relative_schedule_intent
 from schedule_runner import (
     ScheduleConfig,
     append_scheduled_task_delivery_log,
@@ -53,6 +56,7 @@ MAX_CONTEXT_MESSAGE_LIMIT = 20
 DEFAULT_CHANNEL_SUMMARY_MAX_AGE_SECONDS = 3600
 LETTA_ERROR_REPLY = "ごめん、今ちょっと考える側につながらない。"
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
+LOCAL_TIME_ZONE = ZoneInfo("Asia/Tokyo")
 
 
 def should_ignore_message(message: discord.Message, bot_user: discord.ClientUser) -> bool:
@@ -143,6 +147,12 @@ def truncate_log_text(value: str | None, limit: int = 240) -> str:
     if len(normalized) <= limit:
         return normalized
     return f"{normalized[:limit]}..."
+
+
+def format_local_schedule_time(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(LOCAL_TIME_ZONE).strftime("%Y-%m-%d %H:%M")
 
 
 def log_letta_tool_events(discord_message_id: int, events: list[LettaToolEvent]) -> None:
@@ -410,6 +420,23 @@ class HannarioClient(discord.Client):
                 )
             return
 
+        direct_schedule_reply = await maybe_handle_direct_schedule_request(message, self.user)
+        if direct_schedule_reply is not None:
+            await message.reply(direct_schedule_reply, mention_author=False)
+            mark_channel_active(
+                self.conversation_states,
+                channel_key(message),
+                self.response_policy_config,
+            )
+            await asyncio.to_thread(
+                log_mention_reply,
+                message,
+                self.user,
+                direct_schedule_reply,
+                response_trigger=decision.trigger,
+            )
+            return
+
         if decision.trigger != "mention":
             await asyncio.to_thread(log_observed_message, message, self.user)
 
@@ -535,6 +562,46 @@ async def run_auto_summary_loop(config: AutoSummaryConfig) -> None:
                 )
 
         await asyncio.sleep(config.interval_seconds)
+
+
+async def maybe_handle_direct_schedule_request(
+    message: discord.Message,
+    bot_user: discord.ClientUser,
+) -> str | None:
+    clean_content = clean_message_content(message, bot_user)
+    relative_intent = parse_relative_schedule_intent(clean_content)
+    if relative_intent is not None:
+        due_at = datetime.now(LOCAL_TIME_ZONE) + timedelta(minutes=relative_intent.minutes)
+        task = await asyncio.to_thread(
+            create_scheduled_task,
+            channel_id=str(message.channel.id),
+            message=relative_intent.message,
+            due_at=due_at,
+            created_by=str(message.author.id),
+            source_message_id=str(message.id),
+            db_path=db_path_from_env(),
+        )
+        logging.info(
+            "Created direct relative scheduled task #%s for Discord message %s due_at=%s",
+            task.id,
+            message.id,
+            task.due_at,
+        )
+        return (
+            f"{relative_intent.minutes}分後の"
+            f"{format_local_schedule_time(due_at)}に「{relative_intent.message}」って言うね。"
+        )
+
+    ambiguous_intent = parse_ambiguous_schedule_intent(clean_content)
+    if ambiguous_intent is not None:
+        if ambiguous_intent.message:
+            return (
+                f"「{ambiguous_intent.message}」は何時に言えばいい？"
+                f"{ambiguous_intent.word}だと少し曖昧だから、具体的な時刻で教えて。"
+            )
+        return f"{ambiguous_intent.word}は少し曖昧だから、具体的な時刻で教えて。"
+
+    return None
 
 
 async def run_heartbeat_loop(
