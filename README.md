@@ -156,7 +156,8 @@ uv run python bot.py
 - If `DISCORD_HEARTBEAT_ENABLED=1`, the bot runs a periodic heartbeat tick.
   By default this logs only and does not post to Discord. If
   `DISCORD_HEARTBEAT_CONSULT_LETTA_ENABLED=1`, heartbeat sends recent
-  observations to Letta for a private status check and logs the result.
+  observations to Letta for a private status check and logs the structured
+  decision.
 - The bot replies in the same channel.
 - The bot ignores messages from itself and other bots.
 - If Letta fails, the bot sends a short fallback reply instead of crashing.

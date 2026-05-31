@@ -31,6 +31,18 @@ class HeartbeatConfig:
 class HeartbeatResult:
     checked_at: str
     letta_reply: str | None = None
+    action: str = "none"
+    reason: str = ""
+    channel_id: str | None = None
+    message: str = ""
+
+
+@dataclass(frozen=True)
+class HeartbeatDecision:
+    action: str = "none"
+    reason: str = ""
+    channel_id: str | None = None
+    message: str = ""
 
 
 def parse_bool_env(name: str, default: bool = False) -> bool:
@@ -108,7 +120,10 @@ def build_heartbeat_input(
         "instruction:",
         "This is a private heartbeat check. Do not send a Discord message.",
         "Look at recent observed messages and decide whether anything deserves attention later.",
-        "Return a short Japanese status with action=none unless there is a clear reason to act.",
+        "Return JSON only.",
+        'Allowed actions: "none" or "consider_reply".',
+        'Use action "none" unless there is a clear, socially appropriate reason to act.',
+        'Schema: {"action":"none","reason":"短い理由","channel_id":null,"message":""}',
         "recent_observations_oldest_first:",
     ]
 
@@ -141,6 +156,41 @@ def consult_letta_for_heartbeat(
     return text
 
 
+def parse_heartbeat_decision(text: str) -> HeartbeatDecision:
+    stripped = text.strip()
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        return parse_legacy_heartbeat_decision(stripped)
+
+    if not isinstance(parsed, dict):
+        return HeartbeatDecision(reason="Heartbeat response was not a JSON object.")
+
+    action = str(parsed.get("action") or "none")
+    if action not in {"none", "consider_reply"}:
+        action = "none"
+
+    channel_id = parsed.get("channel_id")
+    if channel_id is not None:
+        channel_id = str(channel_id)
+
+    return HeartbeatDecision(
+        action=action,
+        reason=str(parsed.get("reason") or ""),
+        channel_id=channel_id,
+        message=str(parsed.get("message") or ""),
+    )
+
+
+def parse_legacy_heartbeat_decision(text: str) -> HeartbeatDecision:
+    action = "none"
+    if "action=consider_reply" in text:
+        action = "consider_reply"
+    elif "action=none" in text:
+        action = "none"
+    return HeartbeatDecision(action=action, reason=text)
+
+
 def run_heartbeat_once(
     config: HeartbeatConfig,
     *,
@@ -164,5 +214,18 @@ def run_heartbeat_once(
     records = read_recent_jsonl_records(config.observation_path, config.observation_limit)
     heartbeat_input = build_heartbeat_input(records, now=actual_now)
     letta_reply = consult_letta_for_heartbeat(client, agent_id, heartbeat_input)
-    logging.info("Discord heartbeat Letta reply: %s", " ".join(letta_reply.split()))
-    return HeartbeatResult(checked_at=checked_at, letta_reply=letta_reply)
+    decision = parse_heartbeat_decision(letta_reply)
+    logging.info(
+        "Discord heartbeat decision: action=%s channel_id=%s reason=%s",
+        decision.action,
+        decision.channel_id,
+        " ".join(decision.reason.split()),
+    )
+    return HeartbeatResult(
+        checked_at=checked_at,
+        letta_reply=letta_reply,
+        action=decision.action,
+        reason=decision.reason,
+        channel_id=decision.channel_id,
+        message=decision.message,
+    )
