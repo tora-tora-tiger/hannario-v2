@@ -260,7 +260,11 @@ Debug context construction:
 uv run python scripts/show_context_debug.py
 uv run python scripts/preview_mention_input_with_summary.py
 uv run python scripts/preview_heartbeat_input.py
+uv run python scripts/smoke_heartbeat_post.py --channel-id 123 --message "heartbeat smoke test"
 ```
+
+`smoke_heartbeat_post.py` is dry-run by default. To actually post, set
+`DISCORD_HEARTBEAT_POST_ENABLED=1` and add `--send`.
 
 Summarize observations:
 
