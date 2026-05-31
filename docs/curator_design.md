@@ -87,3 +87,5 @@ curator decision.
 `scripts/curator_llm_dry_run.py` calls OpenAI directly with Structured Outputs
 and validates the result with the same Pydantic schema. It reads
 `OPENAI_API_KEY` from `.env.letta` and still does not write memory.
+
+See [curator_examples.md](curator_examples.md) for expected behavior examples.

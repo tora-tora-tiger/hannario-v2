@@ -97,6 +97,8 @@ This replaces the entire block value. It is not an append operation.
 
 See [docs/curator_design.md](docs/curator_design.md) for the proposed curator
 and write gate design.
+See [docs/curator_examples.md](docs/curator_examples.md) for expected curator
+behavior examples.
 
 To test the current curator dry-run stub:
 
