@@ -16,11 +16,14 @@ from channel_summaries import read_latest_channel_summary
 from conversation_log import log_mention_reply, log_observed_message
 from letta_agent import LettaToolEvent, ask_letta_with_diagnostics
 from response_policy import (
+    ConversationStateStore,
     ResponseDecision,
     ResponsePolicyConfig,
     author_is_bot_user,
+    channel_key,
     decide_response,
     load_response_policy_config_from_env,
+    mark_channel_active,
 )
 
 
@@ -153,8 +156,9 @@ async def decide_response_for_message(
     message: discord.Message,
     bot_user: discord.ClientUser,
     config: ResponsePolicyConfig,
+    conversation_states: ConversationStateStore,
 ) -> ResponseDecision:
-    decision = decide_response(message, bot_user, config)
+    decision = decide_response(message, bot_user, config, conversation_states)
     if decision.should_respond or not config.reply_trigger_enabled:
         return decision
 
@@ -183,6 +187,7 @@ class HannarioClient(discord.Client):
         self.letta_agent_id = letta_agent_id
         self.auto_summary_config = auto_summary_config
         self.response_policy_config = response_policy_config
+        self.conversation_states: ConversationStateStore = {}
         self.auto_summary_task: asyncio.Task[None] | None = None
 
     async def on_ready(self) -> None:
@@ -219,12 +224,21 @@ class HannarioClient(discord.Client):
             message,
             self.user,
             self.response_policy_config,
+            self.conversation_states,
         )
 
         if not decision.should_respond:
             await asyncio.to_thread(log_observed_message, message, self.user)
             if is_ping_command(message):
                 await message.channel.send("pong")
+            if decision.trigger == "silenced":
+                logging.info(
+                    "Skipping response trigger=silenced from %s (%s) in #%s (%s)",
+                    message.author.display_name,
+                    message.author.id,
+                    getattr(message.channel, "name", "direct-message"),
+                    message.channel.id,
+                )
             return
 
         if decision.trigger != "mention":
@@ -298,6 +312,11 @@ class HannarioClient(discord.Client):
                 )
 
         await message.reply(reply, mention_author=False)
+        mark_channel_active(
+            self.conversation_states,
+            channel_key(message),
+            self.response_policy_config,
+        )
         await asyncio.to_thread(
             log_mention_reply,
             message,

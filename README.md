@@ -102,8 +102,13 @@ LETTA_AGENT_ID=...
 DISCORD_CONTEXT_MESSAGE_LIMIT=5
 DISCORD_INCLUDE_CHANNEL_SUMMARY=0
 DISCORD_WAKE_WORDS=はんなり男,はんなり
+DISCORD_SILENCE_PHRASES=黙って,消えて,静かにして,もういい,呼んでない
 DISCORD_REPLY_TRIGGER_ENABLED=1
 DISCORD_WAKE_WORD_TRIGGER_ENABLED=1
+DISCORD_ACTIVE_REPLY_ENABLED=1
+DISCORD_SILENCE_ENABLED=1
+DISCORD_ACTIVE_REPLY_WINDOW_SECONDS=300
+DISCORD_SILENCE_SECONDS=1800
 DISCORD_AUTO_SUMMARY_ENABLED=0
 DISCORD_AUTO_SUMMARY_INTERVAL_SECONDS=600
 DISCORD_AUTO_SUMMARY_LIMIT=20
@@ -121,6 +126,11 @@ uv run python bot.py
 - `!ping` replies with `pong`.
 - The bot replies when it is mentioned, when a message replies to the bot, or
   when a message contains one of `DISCORD_WAKE_WORDS`.
+- After the bot replies, the channel stays active for
+  `DISCORD_ACTIVE_REPLY_WINDOW_SECONDS`; during that window, ordinary follow-up
+  messages in the same channel can also trigger replies.
+- If a message contains one of `DISCORD_SILENCE_PHRASES`, the bot stops replying
+  in that channel for `DISCORD_SILENCE_SECONDS`.
 - On reply, the bot sends the cleaned Discord message context to Letta.
 - On reply, the bot also sends up to `DISCORD_CONTEXT_MESSAGE_LIMIT` recent
   messages from the same channel as context. Set it to `0` to disable this.
