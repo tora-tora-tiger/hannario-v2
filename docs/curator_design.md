@@ -4,15 +4,20 @@
 
 The curator reviews conversations and proposes memory updates.
 
-The first version must not apply updates automatically. It only produces a
-proposal that a human can inspect.
+The current bot intentionally allows Letta's conversational agent to use its
+built-in memory behavior, including self-updates. Curator tooling is advisory:
+it helps inspect logs, propose updates, and preview manual changes.
+
+If memory drift becomes a problem, this design can become a stricter write gate
+by making memory blocks read-only and routing durable updates through curator
+approval.
 
 ## Non-goals
 
 - Do not save raw user messages directly into trusted memory.
 - Do not turn jokes, dares, or one-off instructions into playbook rules.
 - Do not rewrite or summarize the whole playbook.
-- Do not let the conversational agent directly edit its own long-term rules.
+- Do not automatically apply curator proposals without human review.
 
 ## Candidate Signals
 
@@ -64,15 +69,21 @@ line.
 
 ## Apply Policy
 
-The initial apply path is manual:
+The current apply path is mixed:
+
+- Letta's conversational agent may update its own memory during conversation.
+- Curator scripts do not write memory.
+- Human-reviewed manual updates use the scripts below.
+
+The manual curator-assisted path is:
 
 1. Curator proposes an update.
 2. Human reviews the proposal.
 3. Human updates memory with `scripts/update_memory_block.py`.
 4. Human verifies with `scripts/show_agent_memory.py`.
 
-Automatic writes are intentionally out of scope until the curator behavior is
-trusted.
+Automatic curator writes are intentionally out of scope until the curator
+behavior is trusted.
 
 ## Manual Memory Update Flow
 
@@ -103,7 +114,8 @@ trusted.
    uv run python scripts/show_agent_memory.py
    ```
 
-Never skip human review. Curator proposals are suggestions, not trusted writes.
+Never skip human review for curator proposals. Curator proposals are
+suggestions, not trusted writes.
 
 ## Current Stub
 

@@ -89,14 +89,15 @@ This replaces the entire block value. It is not an append operation.
 
 ## Memory Operating Rules
 
+- Current default: allow Letta's conversational agent to update its own memory.
 - `playbook` entries use stable IDs like `P001`.
 - Prefer append or targeted edits conceptually; avoid rewriting the whole playbook casually.
 - `scripts/update_memory_block.py` performs a full replacement.
-- Do not promote raw user messages directly into trusted memory.
-- Curator/write gate is not implemented yet.
+- Curator scripts are advisory tools for inspection and manual review.
+- If memory drift becomes a problem, make memory blocks read-only and route writes through a gate.
 
-See [docs/curator_design.md](docs/curator_design.md) for the proposed curator
-and write gate design.
+See [docs/curator_design.md](docs/curator_design.md) for the curator and
+optional write gate design.
 See [docs/curator_examples.md](docs/curator_examples.md) for expected curator
 behavior examples.
 Machine-readable curator examples live in `data/curator_examples.jsonl`.
@@ -194,7 +195,7 @@ uv run python scripts/curate_recent_mentions.py --limit 1
 
 ## Not Implemented Yet
 
-- Curator or memory write gate.
+- Automatic curator apply or read-only memory write gate.
 - Heartbeat or scheduled autonomous actions.
 - Discord API tools beyond reading messages and sending replies.
 - Web or database tools.
