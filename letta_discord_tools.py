@@ -243,7 +243,13 @@ def list_discord_schedules(status: str = "pending", limit: int = 10, channel_id:
 CREATE_DISCORD_SCHEDULE_SOURCE = r'''DB_PATH = globals().get("DB_PATH", "/data/local.sqlite3")
 
 
-def create_discord_schedule(channel_id: str, due_at: str, message: str, timezone: str = "Asia/Tokyo") -> str:
+def create_discord_schedule(
+    channel_id: str,
+    due_at: str,
+    message: str,
+    timezone: str = "Asia/Tokyo",
+    relative_minutes: int = 0,
+) -> str:
     """Create a scheduled Discord task.
 
     Args:
@@ -251,6 +257,8 @@ def create_discord_schedule(channel_id: str, due_at: str, message: str, timezone
         due_at: ISO timestamp. Naive values are interpreted in timezone.
         message: Message to post when due.
         timezone: IANA timezone for naive due_at values. Default is Asia/Tokyo.
+        relative_minutes: For requests like "10 minutes later", set this instead of
+            calculating due_at yourself. Values are clamped to 1..10080. Use 0 to ignore.
 
     Returns:
         A short confirmation including the created task id and stored UTC due_at.
@@ -266,15 +274,26 @@ def create_discord_schedule(channel_id: str, due_at: str, message: str, timezone
         return "Failed to create schedule: message is required."
 
     try:
-        parsed_due_at = datetime.fromisoformat(str(due_at))
-    except ValueError:
-        return "Failed to create schedule: due_at must be an ISO timestamp."
-
-    try:
-        if parsed_due_at.tzinfo is None:
-            parsed_due_at = parsed_due_at.replace(tzinfo=ZoneInfo(timezone))
+        schedule_timezone = ZoneInfo(timezone)
     except Exception:
         return f"Failed to create schedule: unknown timezone {timezone}."
+
+    try:
+        safe_relative_minutes = int(relative_minutes)
+    except (TypeError, ValueError):
+        safe_relative_minutes = 0
+
+    if safe_relative_minutes:
+        safe_relative_minutes = max(1, min(safe_relative_minutes, 10080))
+        parsed_due_at = datetime.now(schedule_timezone) + timedelta(minutes=safe_relative_minutes)
+    else:
+        try:
+            parsed_due_at = datetime.fromisoformat(str(due_at))
+        except ValueError:
+            return "Failed to create schedule: due_at must be an ISO timestamp."
+
+        if parsed_due_at.tzinfo is None:
+            parsed_due_at = parsed_due_at.replace(tzinfo=schedule_timezone)
 
     due_at_utc = parsed_due_at.astimezone(UTC).isoformat()
     created_at = datetime.now(UTC).isoformat()

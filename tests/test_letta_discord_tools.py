@@ -164,6 +164,29 @@ class LettaDiscordToolsTest(unittest.TestCase):
             self.assertIn("Failed to create schedule: due_at is in the past", result)
             self.assertEqual(tasks, [])
 
+    def test_create_discord_schedule_supports_relative_minutes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "local.sqlite3"
+            spec = next(
+                spec
+                for spec in LETTA_DISCORD_TOOL_SPECS
+                if spec.name == "create_discord_schedule"
+            )
+            function = load_function(spec.source_code, spec.name, Path(temp_dir), db_path)
+
+            result = function(
+                channel_id="123",
+                due_at="",
+                message="10分後です",
+                timezone="Asia/Tokyo",
+                relative_minutes=10,
+            )
+            tasks = list_scheduled_tasks(db_path=db_path)
+
+            self.assertIn("Created scheduled Discord task #1", result)
+            self.assertEqual(len(tasks), 1)
+            self.assertEqual(tasks[0].message, "10分後です")
+
     def test_cancel_discord_schedule_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "local.sqlite3"
