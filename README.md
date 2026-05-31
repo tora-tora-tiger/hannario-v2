@@ -87,6 +87,12 @@ uv run python scripts/snapshot_agent_memory.py
 
 Snapshots are written under `memory_snapshots/`, which is ignored by git.
 
+To diff two memory snapshots:
+
+```sh
+uv run python scripts/diff_agent_memory.py memory_snapshots/before.json memory_snapshots/after.json
+```
+
 To manually replace one memory block:
 
 ```sh
