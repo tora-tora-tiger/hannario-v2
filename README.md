@@ -138,6 +138,7 @@ DISCORD_HEARTBEAT_POST_MAX_CHARS=500
 DISCORD_SCHEDULE_ENABLED=0
 DISCORD_SCHEDULE_INTERVAL_SECONDS=30
 DISCORD_SCHEDULE_DUE_LIMIT=5
+DISCORD_SCHEDULE_INTERNAL_CONSULT_LETTA_ENABLED=0
 HANNARIO_DB_PATH=data/local.sqlite3
 ```
 
@@ -187,6 +188,10 @@ uv run python bot.py
 - If `DISCORD_SCHEDULE_ENABLED=1`, the bot checks SQLite scheduled tasks every
   `DISCORD_SCHEDULE_INTERVAL_SECONDS` seconds. Due `pending` tasks are posted
   to their Discord channel and marked `done` only after a successful send.
+  Internal non-post tasks are completed without posting. If
+  `DISCORD_SCHEDULE_INTERNAL_CONSULT_LETTA_ENABLED=1`, the bot privately asks
+  Letta to think about each due internal task and stores the result in the
+  schedule delivery log.
 - The bot replies in the same channel.
 - The bot ignores messages from itself and other bots.
 - If Letta fails, the bot sends a short fallback reply instead of crashing.

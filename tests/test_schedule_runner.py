@@ -30,6 +30,7 @@ class ScheduleRunnerTest(unittest.TestCase):
                 enabled=False,
                 interval_seconds=DEFAULT_SCHEDULE_INTERVAL_SECONDS,
                 due_limit=DEFAULT_SCHEDULE_DUE_LIMIT,
+                internal_consult_letta_enabled=False,
                 log_path=DEFAULT_SCHEDULE_LOG_PATH,
             ),
         )
@@ -41,6 +42,7 @@ class ScheduleRunnerTest(unittest.TestCase):
                 "DISCORD_SCHEDULE_ENABLED": "1",
                 "DISCORD_SCHEDULE_INTERVAL_SECONDS": "15",
                 "DISCORD_SCHEDULE_DUE_LIMIT": "2",
+                "DISCORD_SCHEDULE_INTERNAL_CONSULT_LETTA_ENABLED": "1",
                 "HANNARIO_DB_PATH": "data/custom.sqlite3",
             },
         ):
@@ -49,6 +51,7 @@ class ScheduleRunnerTest(unittest.TestCase):
         self.assertTrue(config.enabled)
         self.assertEqual(config.interval_seconds, 15)
         self.assertEqual(config.due_limit, 2)
+        self.assertTrue(config.internal_consult_letta_enabled)
         self.assertEqual(config.db_path, Path("data/custom.sqlite3"))
 
     def test_delivery_record_and_log(self) -> None:

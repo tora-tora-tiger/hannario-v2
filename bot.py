@@ -27,6 +27,7 @@ from heartbeat import (
     record_heartbeat_post,
     run_heartbeat_once,
 )
+from internal_schedule import consult_letta_for_internal_task
 from letta_agent import LettaToolEvent, ask_letta_with_diagnostics
 from memory_audit import audit_memory_write_events, has_memory_write_tool_call
 from response_policy import (
@@ -678,6 +679,24 @@ async def run_due_scheduled_tasks_once(
     )
     for task in tasks:
         if task.kind != SCHEDULE_KIND_POST:
+            internal_result = None
+            if config.internal_consult_letta_enabled:
+                if getattr(discord_client, "letta_client", None) is None or getattr(
+                    discord_client,
+                    "letta_agent_id",
+                    None,
+                ) is None:
+                    logging.warning(
+                        "Skipping internal scheduled task Letta consult: missing client or agent_id"
+                    )
+                else:
+                    internal_result = await asyncio.to_thread(
+                        consult_letta_for_internal_task,
+                        discord_client.letta_client,
+                        discord_client.letta_agent_id,
+                        task,
+                    )
+
             updated_task = await asyncio.to_thread(
                 mark_scheduled_task_done,
                 task.id,
@@ -695,6 +714,7 @@ async def run_due_scheduled_tasks_once(
                 checked_at=checked_at,
                 should_send=False,
                 reason=f"internal_{task.kind}",
+                internal_result=internal_result,
                 status_after=status_after,
             )
             await asyncio.to_thread(

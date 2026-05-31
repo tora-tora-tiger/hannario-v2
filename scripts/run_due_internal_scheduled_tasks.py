@@ -4,14 +4,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from letta_client import Letta, MessageCreate, TextContent
+from letta_client import Letta
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from schedule_db import SCHEDULE_KIND_POST, db_path_from_env, list_due_scheduled_tasks, mark_scheduled_task_done
 from curator_memory import require_agent_id
 from letta_settings import letta_base_url
-from letta_agent import RETURN_MESSAGE_TYPES, extract_assistant_text
+from internal_schedule import consult_letta_for_internal_task
 from schedule_runner import (
     DEFAULT_SCHEDULE_DUE_LIMIT,
     DEFAULT_SCHEDULE_LOG_PATH,
@@ -43,39 +43,6 @@ def parse_args() -> argparse.Namespace:
         help="Ask Letta to privately think about each due internal task before marking it done.",
     )
     return parser.parse_args()
-
-
-def build_internal_task_prompt(task) -> str:
-    return "\n".join(
-        [
-            "Internal scheduled task",
-            "This is private. Do not assume a Discord message will be sent.",
-            "Think about the task note and respond with a short internal reflection.",
-            f"task_id: {task.id}",
-            f"kind: {task.kind}",
-            f"channel_id: {task.channel_id}",
-            f"message: {task.message}",
-            f"note: {task.note or ''}",
-            f"due_at: {task.due_at}",
-        ]
-    )
-
-
-def consult_letta_for_internal_task(client: Letta, agent_id: str, task) -> str:
-    response = client.agents.messages.create(
-        agent_id=agent_id,
-        messages=[
-            MessageCreate(
-                role="user",
-                content=[TextContent(text=build_internal_task_prompt(task))],
-            )
-        ],
-        include_return_message_types=RETURN_MESSAGE_TYPES,
-    )
-    text = extract_assistant_text(response)
-    if text is None:
-        raise RuntimeError(f"Could not extract Letta internal task reply from {type(response)!r}")
-    return text
 
 
 def main() -> None:

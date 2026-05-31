@@ -113,6 +113,35 @@ class ScheduleBotTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"reason": "internal_think"', log_text)
         self.assertIn('"should_send": false', log_text)
 
+    async def test_run_due_scheduled_tasks_consults_letta_for_internal_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "local.sqlite3"
+            log_path = Path(temp_dir) / "scheduled_tasks.jsonl"
+            create_scheduled_task(
+                channel_id="123",
+                message="internal message",
+                due_at=datetime.now(UTC) - timedelta(minutes=1),
+                kind=SCHEDULE_KIND_THINK,
+                note="think about this",
+                db_path=db_path,
+            )
+            client = FakeClient(FakeChannel())
+            client.letta_client = SimpleNamespace()
+            client.letta_agent_id = "agent"
+            config = ScheduleConfig(
+                enabled=True,
+                internal_consult_letta_enabled=True,
+                db_path=db_path,
+                log_path=log_path,
+            )
+
+            with patch("bot.consult_letta_for_internal_task", return_value="考えた"):
+                await run_due_scheduled_tasks_once(config, client)  # type: ignore[arg-type]
+
+            log_text = log_path.read_text(encoding="utf-8")
+
+        self.assertIn('"internal_result": "考えた"', log_text)
+
     async def test_maybe_handle_direct_schedule_request_creates_relative_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "local.sqlite3"

@@ -19,6 +19,7 @@ class ScheduleConfig:
     enabled: bool = False
     interval_seconds: int = DEFAULT_SCHEDULE_INTERVAL_SECONDS
     due_limit: int = DEFAULT_SCHEDULE_DUE_LIMIT
+    internal_consult_letta_enabled: bool = False
     db_path: Path = DEFAULT_DB_PATH
     log_path: Path = DEFAULT_SCHEDULE_LOG_PATH
 
@@ -71,6 +72,9 @@ def load_schedule_config_from_env() -> ScheduleConfig:
         due_limit=parse_positive_int_env(
             "DISCORD_SCHEDULE_DUE_LIMIT",
             DEFAULT_SCHEDULE_DUE_LIMIT,
+        ),
+        internal_consult_letta_enabled=parse_bool_env(
+            "DISCORD_SCHEDULE_INTERNAL_CONSULT_LETTA_ENABLED"
         ),
         db_path=db_path_from_env(),
     )
