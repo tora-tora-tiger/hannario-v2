@@ -15,6 +15,13 @@ from auto_channel_summary import (
 from channel_summaries import read_latest_channel_summary
 from conversation_log import log_mention_reply, log_observed_message
 from letta_agent import LettaToolEvent, ask_letta_with_diagnostics
+from response_policy import (
+    ResponseDecision,
+    ResponsePolicyConfig,
+    author_is_bot_user,
+    decide_response,
+    load_response_policy_config_from_env,
+)
 
 
 COMMAND_PREFIX = "!"
@@ -31,10 +38,6 @@ def should_ignore_message(message: discord.Message, bot_user: discord.ClientUser
 
 def is_ping_command(message: discord.Message) -> bool:
     return message.content.strip() == f"{COMMAND_PREFIX}ping"
-
-
-def is_mentioned(message: discord.Message, bot_user: discord.ClientUser) -> bool:
-    return bot_user in message.mentions
 
 
 def context_message_limit() -> int:
@@ -121,6 +124,50 @@ async def fetch_recent_channel_messages(
     return messages
 
 
+async def fetch_referenced_message(message: discord.Message) -> discord.Message | None:
+    reference = getattr(message, "reference", None)
+    if reference is None or getattr(reference, "resolved", None) is not None:
+        return None
+
+    message_id = getattr(reference, "message_id", None)
+    if message_id is None:
+        return None
+
+    fetch_message = getattr(message.channel, "fetch_message", None)
+    if fetch_message is None:
+        return None
+
+    try:
+        return await fetch_message(message_id)
+    except (discord.Forbidden, discord.HTTPException, discord.NotFound):
+        logging.warning(
+            "Could not fetch referenced message %s in channel %s",
+            message_id,
+            message.channel.id,
+            exc_info=True,
+        )
+        return None
+
+
+async def decide_response_for_message(
+    message: discord.Message,
+    bot_user: discord.ClientUser,
+    config: ResponsePolicyConfig,
+) -> ResponseDecision:
+    decision = decide_response(message, bot_user, config)
+    if decision.should_respond or not config.reply_trigger_enabled:
+        return decision
+
+    referenced_message = await fetch_referenced_message(message)
+    if referenced_message is None:
+        return decision
+
+    if author_is_bot_user(referenced_message.author, bot_user):
+        return ResponseDecision(True, "reply")
+
+    return decision
+
+
 class HannarioClient(discord.Client):
     def __init__(
         self,
@@ -128,12 +175,14 @@ class HannarioClient(discord.Client):
         letta_client: Letta,
         letta_agent_id: str | None,
         auto_summary_config: AutoSummaryConfig,
+        response_policy_config: ResponsePolicyConfig,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
         self.letta_client = letta_client
         self.letta_agent_id = letta_agent_id
         self.auto_summary_config = auto_summary_config
+        self.response_policy_config = response_policy_config
         self.auto_summary_task: asyncio.Task[None] | None = None
 
     async def on_ready(self) -> None:
@@ -166,15 +215,25 @@ class HannarioClient(discord.Client):
         if should_ignore_message(message, self.user):
             return
 
-        if not is_mentioned(message, self.user):
+        decision = await decide_response_for_message(
+            message,
+            self.user,
+            self.response_policy_config,
+        )
+
+        if not decision.should_respond:
             await asyncio.to_thread(log_observed_message, message, self.user)
             if is_ping_command(message):
                 await message.channel.send("pong")
             return
 
+        if decision.trigger != "mention":
+            await asyncio.to_thread(log_observed_message, message, self.user)
+
         channel_name = getattr(message.channel, "name", "direct-message")
         logging.info(
-            "Received mention from %s (%s) in #%s (%s)",
+            "Received response trigger=%s from %s (%s) in #%s (%s)",
+            decision.trigger,
             message.author.display_name,
             message.author.id,
             channel_name,
@@ -246,6 +305,7 @@ class HannarioClient(discord.Client):
             reply,
             recent_messages=recent_messages,
             channel_summary=channel_summary,
+            response_trigger=decision.trigger,
         )
 
 
@@ -284,12 +344,14 @@ def main() -> None:
     letta_client = Letta(base_url=os.getenv("LETTA_BASE_URL", DEFAULT_LETTA_BASE_URL))
     letta_agent_id = os.getenv("LETTA_AGENT_ID")
     auto_summary_config = load_auto_summary_config_from_env()
+    response_policy_config = load_response_policy_config_from_env()
 
     client = HannarioClient(
         intents=intents,
         letta_client=letta_client,
         letta_agent_id=letta_agent_id,
         auto_summary_config=auto_summary_config,
+        response_policy_config=response_policy_config,
     )
     client.run(token, log_handler=None)
 

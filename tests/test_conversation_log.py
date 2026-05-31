@@ -79,6 +79,7 @@ class ConversationLogTest(unittest.TestCase):
         )
 
         self.assertEqual(record["message_id"], "103")
+        self.assertEqual(record["response_trigger"], "mention")
         self.assertEqual(record["clean_content"], "今の話は？")
         self.assertEqual(record["bot_reply"], "前の話です")
         self.assertEqual(
@@ -125,6 +126,19 @@ class ConversationLogTest(unittest.TestCase):
 
         self.assertEqual(record["channel_summary"]["summary"], "summary")
         self.assertNotIn("context", record["channel_summary"])
+
+    def test_mention_log_record_can_record_response_trigger(self) -> None:
+        bot_user = SimpleNamespace(id=999)
+        current_message = fake_message("ハンナどう思う？", message_id=103)
+
+        record = mention_log_record(
+            current_message,
+            bot_user,
+            "そうだね",
+            response_trigger="wake_word",
+        )
+
+        self.assertEqual(record["response_trigger"], "wake_word")
 
 
 if __name__ == "__main__":

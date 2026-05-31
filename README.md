@@ -101,6 +101,9 @@ LETTA_BASE_URL=http://localhost:8283
 LETTA_AGENT_ID=...
 DISCORD_CONTEXT_MESSAGE_LIMIT=5
 DISCORD_INCLUDE_CHANNEL_SUMMARY=0
+DISCORD_WAKE_WORDS=はんなり男,ハンナ
+DISCORD_REPLY_TRIGGER_ENABLED=1
+DISCORD_WAKE_WORD_TRIGGER_ENABLED=1
 DISCORD_AUTO_SUMMARY_ENABLED=0
 DISCORD_AUTO_SUMMARY_INTERVAL_SECONDS=600
 DISCORD_AUTO_SUMMARY_LIMIT=20
@@ -116,8 +119,10 @@ uv run python bot.py
 ## Current Behavior
 
 - `!ping` replies with `pong`.
-- Mentioning the bot sends the cleaned Discord message context to Letta.
-- On mention, the bot also sends up to `DISCORD_CONTEXT_MESSAGE_LIMIT` recent
+- The bot replies when it is mentioned, when a message replies to the bot, or
+  when a message contains one of `DISCORD_WAKE_WORDS`.
+- On reply, the bot sends the cleaned Discord message context to Letta.
+- On reply, the bot also sends up to `DISCORD_CONTEXT_MESSAGE_LIMIT` recent
   messages from the same channel as context. Set it to `0` to disable this.
 - If `DISCORD_INCLUDE_CHANNEL_SUMMARY=1`, the bot also sends the latest saved
   same-channel summary from `logs/channel_summaries.jsonl`.
@@ -127,7 +132,7 @@ uv run python bot.py
 - The bot ignores messages from itself and other bots.
 - If Letta fails, the bot sends a short fallback reply instead of crashing.
 - Letta tool calls and tool returns are logged by the bot when returned by Letta.
-- Mention conversations are appended to `logs/discord_mentions.jsonl`.
+- Triggered conversations are appended to `logs/discord_mentions.jsonl`.
 - Non-mention user messages are appended to `logs/discord_observations.jsonl`
   for observation only. They are not directly sent to Letta yet.
 
@@ -161,11 +166,11 @@ uv run python scripts/summarize_all_observed_channels.py --limit 20 --save
 ## Logs And Summaries
 
 The bot logs mention conversations and non-mention user message observations.
-Only mention conversations are sent to Letta.
+Only triggered conversations are sent directly to Letta.
 
-Mention records in `logs/discord_mentions.jsonl` contain minimal Discord
+Triggered records in `logs/discord_mentions.jsonl` contain minimal Discord
 context, the recent channel context sent to Letta, the optional channel summary
-sent to Letta, and the bot reply.
+sent to Letta, the response trigger, and the bot reply.
 
 Observation records in `logs/discord_observations.jsonl` contain minimal
 Discord context and cleaned message content. They do not include bot replies

@@ -10,7 +10,7 @@ DEFAULT_LOG_PATH = Path("logs/discord_mentions.jsonl")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Show recent logged Discord mention conversations.",
+        description="Show recent logged Discord triggered conversations.",
     )
     parser.add_argument(
         "--limit",
@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
         "--path",
         type=Path,
         default=DEFAULT_LOG_PATH,
-        help="Path to the mention JSONL log.",
+        help="Path to the triggered conversation JSONL log.",
     )
     parser.add_argument(
         "--curator-input",
@@ -55,8 +55,9 @@ def print_record(record: dict[str, Any]) -> None:
     user_text = record.get("clean_content") or ""
     bot_reply = record.get("bot_reply") or ""
     recent_context = record.get("recent_context") or []
+    response_trigger = record.get("response_trigger") or "mention"
 
-    print(f"[{timestamp}] #{channel} / {author}")
+    print(f"[{timestamp}] #{channel} / {author} / trigger={response_trigger}")
     if recent_context:
         print("Context:")
         for item in recent_context:
@@ -96,11 +97,11 @@ def main() -> None:
     try:
         records = read_recent_records(args.path, args.limit)
     except FileNotFoundError:
-        print(f"No mention log found at {args.path}. Run the bot and mention it first.")
+        print(f"No triggered conversation log found at {args.path}. Run the bot first.")
         return
 
     if not records:
-        print(f"No mention records found in {args.path}.")
+        print(f"No triggered conversation records found in {args.path}.")
         return
 
     for index, record in enumerate(records):

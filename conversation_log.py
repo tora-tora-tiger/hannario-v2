@@ -36,6 +36,7 @@ def mention_log_record(
     bot_reply: str,
     recent_messages: Sequence[discord.Message] | None = None,
     channel_summary: dict[str, Any] | None = None,
+    response_trigger: str = "mention",
 ) -> dict[str, Any]:
     guild = message.guild
     channel_name = getattr(message.channel, "name", "direct-message")
@@ -49,6 +50,7 @@ def mention_log_record(
         "message_id": str(message.id),
         "author_id": str(message.author.id),
         "author_display_name": message.author.display_name,
+        "response_trigger": response_trigger,
         "clean_content": clean_message_content(message, bot_user),
         "recent_context": [
             context_log_record(recent_message, bot_user)
@@ -93,6 +95,7 @@ def log_mention_reply(
     *,
     recent_messages: Sequence[discord.Message] | None = None,
     channel_summary: dict[str, Any] | None = None,
+    response_trigger: str = "mention",
     path: Path = DEFAULT_LOG_PATH,
 ) -> None:
     append_jsonl(
@@ -103,6 +106,7 @@ def log_mention_reply(
             bot_reply,
             recent_messages=recent_messages,
             channel_summary=channel_summary,
+            response_trigger=response_trigger,
         ),
     )
 
