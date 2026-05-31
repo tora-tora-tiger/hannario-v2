@@ -90,8 +90,8 @@ uv run python scripts/register_letta_tools.py
 ```
 
 The narrower `scripts/register_letta_discord_tools.py` and
-`scripts/register_letta_db_tools.py` scripts are also available when you only
-want to refresh one tool group.
+`scripts/register_letta_db_tools.py`, and `scripts/register_letta_web_tools.py`
+scripts are also available when you only want to refresh one tool group.
 
 The registered tools are:
 
@@ -104,6 +104,7 @@ The registered tools are:
 - `create_internal_discord_schedule`
 - `cancel_discord_schedule`
 - `run_readonly_sql`
+- `fetch_web_text`
 
 ## Run The Bot
 
@@ -465,5 +466,4 @@ uv run python scripts/apply_playbook_append.py --proposal-json curator_proposal.
 - Automatic curator apply or read-only memory write gate.
 - Discord write tools beyond sending replies.
 - Writable database tools.
-- Web tools.
 - Deployment or process supervision.

@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-from typing import Protocol
 
 from dotenv import load_dotenv
 from letta_client import Letta
@@ -8,22 +7,11 @@ from letta_client import Letta
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from curator_memory import require_agent_id
-from letta_db_tools import LETTA_DB_TOOL_SPECS
-from letta_discord_tools import LETTA_DISCORD_TOOL_SPECS
 from letta_settings import letta_base_url
-from letta_web_tools import LETTA_WEB_TOOL_SPECS
+from letta_web_tools import LETTA_WEB_TOOL_SPECS, LettaWebToolSpec
 
 
-class ToolSpec(Protocol):
-    name: str
-    description: str
-    source_code: str
-    return_char_limit: int
-    tags: tuple[str, ...]
-    default_requires_approval: bool
-
-
-def upsert_tool(client: Letta, spec: ToolSpec):
+def upsert_tool(client: Letta, spec: LettaWebToolSpec):
     return client.tools.upsert(
         source_code=spec.source_code,
         description=spec.description,
@@ -50,14 +38,9 @@ def main() -> None:
     load_dotenv()
     client = Letta(base_url=letta_base_url())
     agent_id = require_agent_id()
-    specs: list[ToolSpec] = [
-        *LETTA_DISCORD_TOOL_SPECS,
-        *LETTA_DB_TOOL_SPECS,
-        *LETTA_WEB_TOOL_SPECS,
-    ]
 
     print(f"agent_id={agent_id}")
-    for spec in specs:
+    for spec in LETTA_WEB_TOOL_SPECS:
         tool = upsert_tool(client, spec)
         print(f"upserted: {tool.name} ({tool.id})")
         if tool.id is None or tool.name is None:
