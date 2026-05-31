@@ -18,6 +18,8 @@ class PreviewHeartbeatInputTest(unittest.TestCase):
 
         self.assertEqual(args.limit, 20)
         self.assertEqual(args.path, Path("logs/discord_observations.jsonl"))
+        self.assertEqual(args.internal_result_limit, 3)
+        self.assertEqual(args.schedule_log_path, Path("logs/scheduled_tasks.jsonl"))
 
 
 if __name__ == "__main__":

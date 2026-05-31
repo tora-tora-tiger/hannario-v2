@@ -18,11 +18,13 @@ from heartbeat import (
     append_heartbeat_log,
     build_heartbeat_input,
     decide_heartbeat_post,
+    format_internal_result_record,
     format_observation_record,
     heartbeat_log_record,
     load_heartbeat_config_from_env,
     parse_heartbeat_decision,
     parse_positive_int_env,
+    read_recent_internal_result_records,
     read_recent_jsonl_records,
     record_heartbeat_post,
     run_heartbeat_once,
@@ -52,6 +54,7 @@ class HeartbeatTest(unittest.TestCase):
                 "DISCORD_HEARTBEAT_CONSULT_LETTA_ENABLED": "1",
                 "DISCORD_HEARTBEAT_POST_ENABLED": "1",
                 "DISCORD_HEARTBEAT_OBSERVATION_LIMIT": "5",
+                "DISCORD_HEARTBEAT_INTERNAL_RESULT_LIMIT": "2",
                 "DISCORD_HEARTBEAT_POST_COOLDOWN_SECONDS": "60",
                 "DISCORD_HEARTBEAT_POST_MAX_CHARS": "80",
             },
@@ -63,6 +66,7 @@ class HeartbeatTest(unittest.TestCase):
         self.assertTrue(config.consult_letta_enabled)
         self.assertTrue(config.post_enabled)
         self.assertEqual(config.observation_limit, 5)
+        self.assertEqual(config.internal_result_limit, 2)
         self.assertEqual(config.post_cooldown_seconds, 60)
         self.assertEqual(config.post_max_chars, 80)
 
@@ -103,6 +107,25 @@ class HeartbeatTest(unittest.TestCase):
 
         self.assertEqual([record["clean_content"] for record in records], ["two", "three"])
 
+    def test_read_recent_internal_result_records(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "scheduled_tasks.jsonl"
+            path.write_text(
+                "\n".join(
+                    [
+                        '{"task_id":1,"kind":"post","internal_result":"ignore"}',
+                        '{"task_id":2,"kind":"think","internal_result":"first"}',
+                        '{"task_id":3,"kind":"think"}',
+                        '{"task_id":4,"kind":"observe","internal_result":"second"}',
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            records = read_recent_internal_result_records(path, 1)
+
+        self.assertEqual([record["task_id"] for record in records], [4])
+
     def test_format_observation_record(self) -> None:
         text = format_observation_record(
             {
@@ -120,6 +143,23 @@ class HeartbeatTest(unittest.TestCase):
             "- 2026-05-31T00:00:00+00:00 #general (123) alice (111): hello",
         )
 
+    def test_format_internal_result_record(self) -> None:
+        text = format_internal_result_record(
+            {
+                "checked_at": "2026-05-31T00:00:00+00:00",
+                "task_id": 7,
+                "kind": "think",
+                "channel_id": "123",
+                "note": "あとで考える",
+                "internal_result": "  会話に出る必要はない  ",
+            }
+        )
+
+        self.assertEqual(
+            text,
+            "- 2026-05-31T00:00:00+00:00 task=#7 kind=think channel_id=123 note=あとで考える result=会話に出る必要はない",
+        )
+
     def test_build_heartbeat_input(self) -> None:
         now = datetime(2026, 5, 31, 0, 0, tzinfo=UTC)
         text = build_heartbeat_input(
@@ -131,6 +171,16 @@ class HeartbeatTest(unittest.TestCase):
                     "author_display_name": "alice",
                     "author_id": "111",
                     "clean_content": "hello",
+                }
+            ],
+            internal_results=[
+                {
+                    "checked_at": "2026-05-31T00:01:00+00:00",
+                    "task_id": 7,
+                    "kind": "think",
+                    "channel_id": "123",
+                    "note": "あとで考える",
+                    "internal_result": "会話に出る必要はない",
                 }
             ],
             now=now,
@@ -145,6 +195,9 @@ class HeartbeatTest(unittest.TestCase):
         self.assertIn("Bad reasons: repeated content", text)
         self.assertIn("recent_observations_oldest_first:", text)
         self.assertIn("alice (111): hello", text)
+        self.assertIn("recent_internal_schedule_results_oldest_first:", text)
+        self.assertIn("private future-self reflections", text)
+        self.assertIn("task=#7 kind=think", text)
 
     def test_parse_heartbeat_decision_json_none(self) -> None:
         decision = parse_heartbeat_decision(
@@ -200,19 +253,25 @@ class HeartbeatTest(unittest.TestCase):
         now = datetime(2026, 5, 31, 0, 0, tzinfo=UTC)
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "observations.jsonl"
+            schedule_log_path = Path(temp_dir) / "scheduled_tasks.jsonl"
             path.write_text(
                 '{"timestamp":"2026-05-31T00:00:00+00:00","clean_content":"hello"}\n',
+                encoding="utf-8",
+            )
+            schedule_log_path.write_text(
+                '{"task_id":7,"kind":"think","channel_id":"123","internal_result":"あとで話す"}\n',
                 encoding="utf-8",
             )
             config = HeartbeatConfig(
                 consult_letta_enabled=True,
                 observation_path=path,
+                schedule_log_path=schedule_log_path,
             )
 
             with patch(
                 "heartbeat.consult_letta_for_heartbeat",
                 return_value='{"action":"none","reason":"特になし","channel_id":null,"message":""}',
-            ):
+            ) as consult:
                 result = run_heartbeat_once(
                     config,
                     client=SimpleNamespace(),
@@ -222,6 +281,7 @@ class HeartbeatTest(unittest.TestCase):
 
         self.assertEqual(result.action, "none")
         self.assertEqual(result.reason, "特になし")
+        self.assertIn("あとで話す", consult.call_args.args[2])
 
     def test_decide_heartbeat_post_disabled(self) -> None:
         result = HeartbeatResult(

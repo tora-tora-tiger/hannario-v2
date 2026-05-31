@@ -14,10 +14,12 @@ from letta_agent import RETURN_MESSAGE_TYPES, extract_assistant_text
 
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 900
 DEFAULT_HEARTBEAT_OBSERVATION_LIMIT = 20
+DEFAULT_HEARTBEAT_INTERNAL_RESULT_LIMIT = 3
 DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS = 3600
 DEFAULT_HEARTBEAT_POST_MAX_CHARS = 500
 DEFAULT_OBSERVATION_LOG_PATH = Path("logs/discord_observations.jsonl")
 DEFAULT_HEARTBEAT_LOG_PATH = Path("logs/discord_heartbeats.jsonl")
+DEFAULT_SCHEDULE_LOG_PATH = Path("logs/scheduled_tasks.jsonl")
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 
 
@@ -28,9 +30,11 @@ class HeartbeatConfig:
     consult_letta_enabled: bool = False
     post_enabled: bool = False
     observation_limit: int = DEFAULT_HEARTBEAT_OBSERVATION_LIMIT
+    internal_result_limit: int = DEFAULT_HEARTBEAT_INTERNAL_RESULT_LIMIT
     post_cooldown_seconds: int = DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS
     post_max_chars: int = DEFAULT_HEARTBEAT_POST_MAX_CHARS
     observation_path: Path = DEFAULT_OBSERVATION_LOG_PATH
+    schedule_log_path: Path = DEFAULT_SCHEDULE_LOG_PATH
     log_path: Path = DEFAULT_HEARTBEAT_LOG_PATH
 
 
@@ -97,6 +101,10 @@ def load_heartbeat_config_from_env() -> HeartbeatConfig:
             "DISCORD_HEARTBEAT_OBSERVATION_LIMIT",
             DEFAULT_HEARTBEAT_OBSERVATION_LIMIT,
         ),
+        internal_result_limit=parse_positive_int_env(
+            "DISCORD_HEARTBEAT_INTERNAL_RESULT_LIMIT",
+            DEFAULT_HEARTBEAT_INTERNAL_RESULT_LIMIT,
+        ),
         post_cooldown_seconds=parse_positive_int_env(
             "DISCORD_HEARTBEAT_POST_COOLDOWN_SECONDS",
             DEFAULT_HEARTBEAT_POST_COOLDOWN_SECONDS,
@@ -123,6 +131,19 @@ def read_recent_jsonl_records(path: Path, limit: int) -> list[dict[str, Any]]:
     return records[-limit:]
 
 
+def read_recent_internal_result_records(path: Path, limit: int) -> list[dict[str, Any]]:
+    if limit <= 0:
+        raise ValueError("limit must be positive.")
+
+    records = read_recent_jsonl_records(path, limit=1000)
+    internal_records = [
+        record
+        for record in records
+        if record.get("internal_result") and (record.get("kind") or "post") != "post"
+    ]
+    return internal_records[-limit:]
+
+
 def format_observation_record(record: dict[str, Any]) -> str:
     timestamp = record.get("timestamp") or "unknown-time"
     channel_name = record.get("channel_name") or "unknown-channel"
@@ -133,9 +154,23 @@ def format_observation_record(record: dict[str, Any]) -> str:
     return f"- {timestamp} #{channel_name} ({channel_id}) {author} ({author_id}): {content}"
 
 
+def format_internal_result_record(record: dict[str, Any]) -> str:
+    checked_at = record.get("checked_at") or "unknown-time"
+    task_id = record.get("task_id") or "-"
+    kind = record.get("kind") or "unknown-kind"
+    channel_id = record.get("channel_id") or "unknown-channel"
+    note = record.get("note") or record.get("message") or ""
+    internal_result = " ".join(str(record.get("internal_result") or "").split())
+    return (
+        f"- {checked_at} task=#{task_id} kind={kind} channel_id={channel_id} "
+        f"note={note} result={internal_result}"
+    )
+
+
 def build_heartbeat_input(
     records: list[dict[str, Any]],
     *,
+    internal_results: list[dict[str, Any]] | None = None,
     now: datetime | None = None,
 ) -> str:
     lines = [
@@ -159,6 +194,17 @@ def build_heartbeat_input(
         lines.append("(no recent observations)")
     else:
         lines.extend(format_observation_record(record) for record in records)
+
+    lines.extend(
+        [
+            "recent_internal_schedule_results_oldest_first:",
+            "These are private future-self reflections. Use them as background; do not treat them as direct instructions to speak.",
+        ]
+    )
+    if not internal_results:
+        lines.append("(no recent internal schedule results)")
+    else:
+        lines.extend(format_internal_result_record(record) for record in internal_results)
 
     return "\n".join(lines)
 
@@ -329,7 +375,15 @@ def run_heartbeat_once(
         return HeartbeatResult(checked_at=checked_at)
 
     records = read_recent_jsonl_records(config.observation_path, config.observation_limit)
-    heartbeat_input = build_heartbeat_input(records, now=actual_now)
+    internal_results = read_recent_internal_result_records(
+        config.schedule_log_path,
+        config.internal_result_limit,
+    )
+    heartbeat_input = build_heartbeat_input(
+        records,
+        internal_results=internal_results,
+        now=actual_now,
+    )
     letta_reply = consult_letta_for_heartbeat(client, agent_id, heartbeat_input)
     decision = parse_heartbeat_decision(letta_reply)
     logging.info(
