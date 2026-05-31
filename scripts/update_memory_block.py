@@ -1,9 +1,9 @@
 import argparse
-import os
 
 from dotenv import load_dotenv
 from letta_client import Letta
 
+from curator_memory import require_agent_id
 from letta_settings import letta_base_url
 
 
@@ -34,10 +34,7 @@ def main() -> None:
     if not new_value:
         raise SystemExit("New value must not be empty.")
 
-    agent_id = os.getenv("LETTA_AGENT_ID")
-    if not agent_id:
-        raise SystemExit("Missing LETTA_AGENT_ID. Add it to .env first.")
-
+    agent_id = require_agent_id()
     client = Letta(base_url=letta_base_url())
     current_block = client.agents.blocks.retrieve(
         agent_id=agent_id,

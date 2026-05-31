@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from diff_agent_memory import load_snapshot, print_block_diff, block_value
+from diff_agent_memory import diff_snapshots, load_snapshot
 from snapshot_agent_memory import DEFAULT_SNAPSHOT_DIR
 
 
@@ -23,19 +23,7 @@ def main() -> None:
     print(f"After:  {after_path}")
     print()
 
-    labels = sorted(
-        set(before.get("blocks", {})) | set(after.get("blocks", {})),
-    )
-    changed = False
-
-    for label in labels:
-        changed = print_block_diff(
-            label,
-            block_value(before, label),
-            block_value(after, label),
-            before_path.name,
-            after_path.name,
-        ) or changed
+    changed = diff_snapshots(before, after, before_path.name, after_path.name)
 
     if not changed:
         print("No memory block changes.")

@@ -99,6 +99,19 @@ To diff the latest two snapshots:
 uv run python scripts/diff_latest_memory_snapshots.py
 ```
 
+Recommended memory observation workflow:
+
+```sh
+# Before a play session
+uv run python scripts/snapshot_agent_memory.py
+
+# After the session
+uv run python scripts/snapshot_agent_memory.py
+uv run python scripts/diff_latest_memory_snapshots.py
+```
+
+This lets the agent use Letta memory freely while still making drift visible.
+
 To manually replace one memory block:
 
 ```sh

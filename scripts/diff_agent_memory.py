@@ -49,11 +49,12 @@ def print_block_diff(
     return True
 
 
-def main() -> None:
-    args = parse_args()
-    before = load_snapshot(args.before)
-    after = load_snapshot(args.after)
-
+def diff_snapshots(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    before_name: str,
+    after_name: str,
+) -> bool:
     labels = sorted(
         set(before.get("blocks", {})) | set(after.get("blocks", {})),
     )
@@ -64,9 +65,18 @@ def main() -> None:
             label,
             block_value(before, label),
             block_value(after, label),
-            args.before.name,
-            args.after.name,
+            before_name,
+            after_name,
         ) or changed
+
+    return changed
+
+
+def main() -> None:
+    args = parse_args()
+    before = load_snapshot(args.before)
+    after = load_snapshot(args.after)
+    changed = diff_snapshots(before, after, args.before.name, args.after.name)
 
     if not changed:
         print("No memory block changes.")
