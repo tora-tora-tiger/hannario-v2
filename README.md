@@ -13,6 +13,8 @@ Discord
 ```
 
 - `bot.py` owns Discord I/O.
+- `discord_context.py` formats Discord messages for Letta.
+- `letta_agent.py` owns Letta message calls and response extraction.
 - Letta owns agent state, message history, and memory blocks.
 - OpenAI keys are only passed to the Letta server.
 - Letta data is stored in the Docker volume `hannario-v2_letta_pgdata`.
