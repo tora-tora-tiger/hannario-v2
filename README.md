@@ -113,6 +113,7 @@ DISCORD_SILENCE_SECONDS=1800
 DISCORD_RANDOM_REPLY_RATE=0.1
 DISCORD_RANDOM_REPLY_COOLDOWN_SECONDS=900
 DISCORD_RANDOM_REPLY_MIN_CHARS=6
+DISCORD_RANDOM_REPLY_REPEATED_CONTENT_LIMIT=1
 DISCORD_AUTO_SUMMARY_ENABLED=0
 DISCORD_AUTO_SUMMARY_INTERVAL_SECONDS=600
 DISCORD_AUTO_SUMMARY_LIMIT=20
@@ -146,7 +147,9 @@ uv run python bot.py
 - If `DISCORD_RANDOM_REPLY_ENABLED=1`, the bot can occasionally join ordinary
   non-triggered conversations. Random participation uses
   `DISCORD_RANDOM_REPLY_RATE`, ignores short messages and commands, and has a
-  per-channel cooldown.
+  per-channel cooldown. Repeated identical messages are limited by
+  `DISCORD_RANDOM_REPLY_REPEATED_CONTENT_LIMIT` so repeated test/spam messages
+  do not keep buying more random chances.
 - On reply, the bot sends the cleaned Discord message context to Letta.
 - The Letta input includes exact current time in UTC and Asia/Tokyo local time.
 - On reply, the bot also sends up to `DISCORD_CONTEXT_MESSAGE_LIMIT` recent

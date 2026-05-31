@@ -11,6 +11,7 @@ DEFAULT_SILENCE_SECONDS = 1800
 DEFAULT_RANDOM_REPLY_RATE = 0.1
 DEFAULT_RANDOM_REPLY_COOLDOWN_SECONDS = 900
 DEFAULT_RANDOM_REPLY_MIN_CHARS = 6
+DEFAULT_RANDOM_REPLY_REPEATED_CONTENT_LIMIT = 1
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 
 
@@ -28,6 +29,7 @@ class ResponsePolicyConfig:
     random_reply_rate: float = DEFAULT_RANDOM_REPLY_RATE
     random_reply_cooldown_seconds: int = DEFAULT_RANDOM_REPLY_COOLDOWN_SECONDS
     random_reply_min_chars: int = DEFAULT_RANDOM_REPLY_MIN_CHARS
+    random_reply_repeated_content_limit: int = DEFAULT_RANDOM_REPLY_REPEATED_CONTENT_LIMIT
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,8 @@ class ChannelConversationState:
     active_until: datetime | None = None
     silenced_until: datetime | None = None
     random_cooldown_until: datetime | None = None
+    last_random_candidate_content: str = ""
+    repeated_random_candidate_count: int = 0
 
 
 ConversationStateStore = dict[str, ChannelConversationState]
@@ -119,6 +123,10 @@ def load_response_policy_config_from_env() -> ResponsePolicyConfig:
             "DISCORD_RANDOM_REPLY_MIN_CHARS",
             DEFAULT_RANDOM_REPLY_MIN_CHARS,
         ),
+        random_reply_repeated_content_limit=parse_positive_int_env(
+            "DISCORD_RANDOM_REPLY_REPEATED_CONTENT_LIMIT",
+            DEFAULT_RANDOM_REPLY_REPEATED_CONTENT_LIMIT,
+        ),
     )
 
 
@@ -191,6 +199,23 @@ def is_random_eligible_content(content: str, config: ResponsePolicyConfig) -> bo
     if stripped.startswith("!"):
         return False
     return True
+
+
+def normalize_random_candidate_content(content: str) -> str:
+    return " ".join(content.casefold().split())
+
+
+def mark_random_candidate_content(
+    state: ChannelConversationState,
+    content: str,
+) -> int:
+    normalized = normalize_random_candidate_content(content)
+    if normalized and normalized == state.last_random_candidate_content:
+        state.repeated_random_candidate_count += 1
+    else:
+        state.last_random_candidate_content = normalized
+        state.repeated_random_candidate_count = 1 if normalized else 0
+    return state.repeated_random_candidate_count
 
 
 def silence_channel(
@@ -286,6 +311,10 @@ def decide_response(
         and not is_random_on_cooldown(state, actual_now)
         and is_random_eligible_content(content, config)
     ):
+        repeated_count = mark_random_candidate_content(state, content)
+        if repeated_count > config.random_reply_repeated_content_limit:
+            return ResponseDecision(False, "random_repeated_content")
+
         actual_random_value = 1.0 if random_value is None else random_value
         if actual_random_value < config.random_reply_rate:
             mark_random_cooldown(state_store, channel_id, config, now=actual_now)

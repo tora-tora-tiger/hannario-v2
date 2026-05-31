@@ -348,6 +348,68 @@ class ResponsePolicyTest(unittest.TestCase):
                 )
                 self.assertFalse(decision.should_respond)
 
+    def test_random_reply_skips_repeated_content(self) -> None:
+        now = datetime(2026, 5, 31, tzinfo=UTC)
+        bot_user = SimpleNamespace(id=1)
+        state_store: dict[str, ChannelConversationState] = {}
+        config = ResponsePolicyConfig(
+            random_reply_enabled=True,
+            random_reply_rate=1.0,
+        )
+
+        first = decide_response(
+            self.message("明日はラーメンを食べます"),
+            bot_user,
+            config,
+            state_store,
+            now=now,
+            random_value=1.0,
+        )
+        second = decide_response(
+            self.message(" 明日はラーメンを食べます "),
+            bot_user,
+            config,
+            state_store,
+            now=now + timedelta(seconds=1),
+            random_value=0.0,
+        )
+
+        self.assertFalse(first.should_respond)
+        self.assertEqual(first.trigger, "none")
+        self.assertFalse(second.should_respond)
+        self.assertEqual(second.trigger, "random_repeated_content")
+
+    def test_random_reply_repeated_content_limit_can_be_increased(self) -> None:
+        now = datetime(2026, 5, 31, tzinfo=UTC)
+        bot_user = SimpleNamespace(id=1)
+        state_store: dict[str, ChannelConversationState] = {}
+        config = ResponsePolicyConfig(
+            random_reply_enabled=True,
+            random_reply_rate=1.0,
+            random_reply_repeated_content_limit=2,
+        )
+
+        first = decide_response(
+            self.message("明日はラーメンを食べます"),
+            bot_user,
+            config,
+            state_store,
+            now=now,
+            random_value=1.0,
+        )
+        second = decide_response(
+            self.message("明日はラーメンを食べます"),
+            bot_user,
+            config,
+            state_store,
+            now=now + timedelta(seconds=1),
+            random_value=0.0,
+        )
+
+        self.assertFalse(first.should_respond)
+        self.assertTrue(second.should_respond)
+        self.assertEqual(second.trigger, "random")
+
     def test_mark_random_cooldown(self) -> None:
         now = datetime(2026, 5, 31, tzinfo=UTC)
         state_store: dict[str, ChannelConversationState] = {}
@@ -378,6 +440,7 @@ class ResponsePolicyTest(unittest.TestCase):
                 "DISCORD_RANDOM_REPLY_RATE": "0.25",
                 "DISCORD_RANDOM_REPLY_COOLDOWN_SECONDS": "900",
                 "DISCORD_RANDOM_REPLY_MIN_CHARS": "8",
+                "DISCORD_RANDOM_REPLY_REPEATED_CONTENT_LIMIT": "2",
             },
         ):
             config = load_response_policy_config_from_env()
@@ -394,6 +457,7 @@ class ResponsePolicyTest(unittest.TestCase):
         self.assertEqual(config.random_reply_rate, 0.25)
         self.assertEqual(config.random_reply_cooldown_seconds, 900)
         self.assertEqual(config.random_reply_min_chars, 8)
+        self.assertEqual(config.random_reply_repeated_content_limit, 2)
 
 
 if __name__ == "__main__":
