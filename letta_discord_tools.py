@@ -7,6 +7,8 @@ class LettaDiscordToolSpec:
     description: str
     source_code: str
     return_char_limit: int = 8000
+    tags: tuple[str, ...] = ("hannario", "discord", "read-only")
+    default_requires_approval: bool = False
 
 
 LIST_OBSERVED_DISCORD_CHANNELS_SOURCE = r'''LOG_DIR = globals().get("LOG_DIR", "/logs")
@@ -174,6 +176,211 @@ def get_latest_discord_channel_summary(channel_id: str) -> str:
 '''
 
 
+LIST_DISCORD_SCHEDULES_SOURCE = r'''DB_PATH = globals().get("DB_PATH", "/data/local.sqlite3")
+
+
+def list_discord_schedules(status: str = "pending", limit: int = 10, channel_id: str = "") -> str:
+    """List scheduled Discord tasks.
+
+    Args:
+        status: One of pending, done, cancelled, or all.
+        limit: Maximum number of tasks to return. Values are clamped to 1..50.
+        channel_id: Optional Discord channel ID filter.
+
+    Returns:
+        A text list of scheduled tasks.
+    """
+    import sqlite3
+    from pathlib import Path
+
+    safe_status = str(status or "pending").strip().lower()
+    if safe_status not in {"pending", "done", "cancelled", "all"}:
+        safe_status = "pending"
+    safe_limit = max(1, min(int(limit), 50))
+
+    path = Path(DB_PATH)
+    if not path.exists():
+        return f"No schedule database is available at {path}."
+
+    connection = sqlite3.connect(path)
+    connection.row_factory = sqlite3.Row
+    try:
+        clauses = []
+        params = []
+        if safe_status != "all":
+            clauses.append("status = ?")
+            params.append(safe_status)
+        if str(channel_id).strip():
+            clauses.append("channel_id = ?")
+            params.append(str(channel_id))
+
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = connection.execute(
+            f"""
+            SELECT * FROM scheduled_tasks
+            {where}
+            ORDER BY due_at ASC, id ASC
+            LIMIT ?
+            """,
+            [*params, safe_limit],
+        ).fetchall()
+    finally:
+        connection.close()
+
+    if not rows:
+        return "No scheduled Discord tasks found."
+
+    lines = ["scheduled_discord_tasks:"]
+    for row in rows:
+        lines.append(
+            f"#{row['id']} [{row['status']}] channel_id={row['channel_id']} "
+            f"due_at={row['due_at']} message={row['message']}"
+        )
+    return "\n".join(lines)
+'''
+
+
+CREATE_DISCORD_SCHEDULE_SOURCE = r'''DB_PATH = globals().get("DB_PATH", "/data/local.sqlite3")
+
+
+def create_discord_schedule(channel_id: str, due_at: str, message: str, timezone: str = "Asia/Tokyo") -> str:
+    """Create a scheduled Discord task.
+
+    Args:
+        channel_id: Discord channel ID to post to.
+        due_at: ISO timestamp. Naive values are interpreted in timezone.
+        message: Message to post when due.
+        timezone: IANA timezone for naive due_at values. Default is Asia/Tokyo.
+
+    Returns:
+        A short confirmation including the created task id and stored UTC due_at.
+    """
+    import sqlite3
+    from datetime import UTC, datetime
+    from pathlib import Path
+    from zoneinfo import ZoneInfo
+
+    if not str(channel_id).strip():
+        return "Failed to create schedule: channel_id is required."
+    if not str(message).strip():
+        return "Failed to create schedule: message is required."
+
+    try:
+        parsed_due_at = datetime.fromisoformat(str(due_at))
+    except ValueError:
+        return "Failed to create schedule: due_at must be an ISO timestamp."
+
+    try:
+        if parsed_due_at.tzinfo is None:
+            parsed_due_at = parsed_due_at.replace(tzinfo=ZoneInfo(timezone))
+    except Exception:
+        return f"Failed to create schedule: unknown timezone {timezone}."
+
+    due_at_utc = parsed_due_at.astimezone(UTC).isoformat()
+    created_at = datetime.now(UTC).isoformat()
+
+    path = Path(DB_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scheduled_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id TEXT NOT NULL,
+                message TEXT NOT NULL,
+                due_at TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'done', 'cancelled')),
+                created_at TEXT NOT NULL,
+                created_by TEXT,
+                source_message_id TEXT,
+                completed_at TEXT,
+                cancelled_at TEXT
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_due_pending
+            ON scheduled_tasks (status, due_at)
+            """
+        )
+        cursor = connection.execute(
+            """
+            INSERT INTO scheduled_tasks (
+                channel_id,
+                message,
+                due_at,
+                status,
+                created_at
+            )
+            VALUES (?, ?, ?, 'pending', ?)
+            """,
+            (str(channel_id), str(message), due_at_utc, created_at),
+        )
+        connection.commit()
+        task_id = cursor.lastrowid
+    finally:
+        connection.close()
+
+    return (
+        f"Created scheduled Discord task #{task_id}: "
+        f"channel_id={channel_id}, due_at={due_at_utc}, message={message}"
+    )
+'''
+
+
+CANCEL_DISCORD_SCHEDULE_SOURCE = r'''DB_PATH = globals().get("DB_PATH", "/data/local.sqlite3")
+
+
+def cancel_discord_schedule(task_id: int) -> str:
+    """Cancel a pending scheduled Discord task.
+
+    Args:
+        task_id: Scheduled task id to cancel.
+
+    Returns:
+        A short cancellation result.
+    """
+    import sqlite3
+    from datetime import UTC, datetime
+    from pathlib import Path
+
+    path = Path(DB_PATH)
+    if not path.exists():
+        return f"No schedule database is available at {path}."
+
+    connection = sqlite3.connect(path)
+    connection.row_factory = sqlite3.Row
+    try:
+        row = connection.execute(
+            "SELECT * FROM scheduled_tasks WHERE id = ?",
+            (int(task_id),),
+        ).fetchone()
+        if row is None:
+            return f"Scheduled Discord task #{task_id} was not found."
+        if row["status"] != "pending":
+            return f"Scheduled Discord task #{task_id} is already {row['status']}."
+
+        cancelled_at = datetime.now(UTC).isoformat()
+        connection.execute(
+            """
+            UPDATE scheduled_tasks
+            SET status = 'cancelled', cancelled_at = ?, completed_at = NULL
+            WHERE id = ? AND status = 'pending'
+            """,
+            (cancelled_at, int(task_id)),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    return f"Cancelled scheduled Discord task #{task_id}."
+'''
+
+
 LETTA_DISCORD_TOOL_SPECS = [
     LettaDiscordToolSpec(
         name="list_observed_discord_channels",
@@ -189,5 +396,23 @@ LETTA_DISCORD_TOOL_SPECS = [
         name="get_latest_discord_channel_summary",
         description="Read the latest saved observation summary for one Discord channel.",
         source_code=GET_LATEST_DISCORD_CHANNEL_SUMMARY_SOURCE,
+    ),
+    LettaDiscordToolSpec(
+        name="list_discord_schedules",
+        description="List scheduled Discord tasks from the local SQLite database.",
+        source_code=LIST_DISCORD_SCHEDULES_SOURCE,
+        tags=("hannario", "discord", "schedule", "read-only"),
+    ),
+    LettaDiscordToolSpec(
+        name="create_discord_schedule",
+        description="Create a scheduled Discord task in the local SQLite database.",
+        source_code=CREATE_DISCORD_SCHEDULE_SOURCE,
+        tags=("hannario", "discord", "schedule", "write"),
+    ),
+    LettaDiscordToolSpec(
+        name="cancel_discord_schedule",
+        description="Cancel a pending scheduled Discord task in the local SQLite database.",
+        source_code=CANCEL_DISCORD_SCHEDULE_SOURCE,
+        tags=("hannario", "discord", "schedule", "write"),
     ),
 ]

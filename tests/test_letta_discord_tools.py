@@ -1,12 +1,21 @@
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 from letta_discord_tools import LETTA_DISCORD_TOOL_SPECS
+from schedule_db import create_scheduled_task, list_scheduled_tasks
 
 
-def load_function(source_code: str, function_name: str, log_dir: Path):
+def load_function(
+    source_code: str,
+    function_name: str,
+    log_dir: Path,
+    db_path: Path | None = None,
+):
     namespace = {"LOG_DIR": str(log_dir)}
+    if db_path is not None:
+        namespace["DB_PATH"] = str(db_path)
     exec(source_code, namespace)
     return namespace[function_name]
 
@@ -97,6 +106,67 @@ class LettaDiscordToolsTest(unittest.TestCase):
         finally:
             (temp_dir / "channel_summaries.jsonl").unlink(missing_ok=True)
             temp_dir.rmdir()
+
+    def test_list_discord_schedules_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "local.sqlite3"
+            create_scheduled_task(
+                channel_id="123",
+                message="予定です",
+                due_at=datetime(2026, 6, 1, 12, 0),
+                db_path=db_path,
+            )
+            spec = next(
+                spec for spec in LETTA_DISCORD_TOOL_SPECS if spec.name == "list_discord_schedules"
+            )
+            function = load_function(spec.source_code, spec.name, Path(temp_dir), db_path)
+
+            result = function("pending", 10, "123")
+
+            self.assertIn("scheduled_discord_tasks:", result)
+            self.assertIn("#1 [pending] channel_id=123", result)
+            self.assertIn("message=予定です", result)
+
+    def test_create_discord_schedule_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "local.sqlite3"
+            spec = next(
+                spec
+                for spec in LETTA_DISCORD_TOOL_SPECS
+                if spec.name == "create_discord_schedule"
+            )
+            function = load_function(spec.source_code, spec.name, Path(temp_dir), db_path)
+
+            result = function("123", "2026-06-01T21:00:00", "21時です")
+            tasks = list_scheduled_tasks(db_path=db_path)
+
+            self.assertIn("Created scheduled Discord task #1", result)
+            self.assertEqual(len(tasks), 1)
+            self.assertEqual(tasks[0].channel_id, "123")
+            self.assertEqual(tasks[0].message, "21時です")
+            self.assertEqual(tasks[0].due_at, "2026-06-01T12:00:00+00:00")
+
+    def test_cancel_discord_schedule_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "local.sqlite3"
+            create_scheduled_task(
+                channel_id="123",
+                message="cancel me",
+                due_at=datetime(2026, 6, 1, 12, 0),
+                db_path=db_path,
+            )
+            spec = next(
+                spec
+                for spec in LETTA_DISCORD_TOOL_SPECS
+                if spec.name == "cancel_discord_schedule"
+            )
+            function = load_function(spec.source_code, spec.name, Path(temp_dir), db_path)
+
+            result = function(1)
+            tasks = list_scheduled_tasks(db_path=db_path, status="all")
+
+            self.assertEqual(result, "Cancelled scheduled Discord task #1.")
+            self.assertEqual(tasks[0].status, "cancelled")
 
 
 if __name__ == "__main__":

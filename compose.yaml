@@ -9,6 +9,7 @@ services:
     volumes:
       - letta_pgdata:/var/lib/postgresql/data
       - ./logs:/logs:ro
+      - ./data:/data
 
 volumes:
   letta_pgdata:

@@ -15,9 +15,9 @@ def upsert_tool(client: Letta, spec: LettaDiscordToolSpec):
     return client.tools.upsert(
         source_code=spec.source_code,
         description=spec.description,
-        tags=["hannario", "discord", "read-only"],
+        tags=list(spec.tags),
         return_char_limit=spec.return_char_limit,
-        default_requires_approval=False,
+        default_requires_approval=spec.default_requires_approval,
     )
 
 

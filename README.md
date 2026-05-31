@@ -56,7 +56,9 @@ docker compose down
 The local Letta URL is `http://localhost:8283`.
 
 The compose service mounts local `logs/` into the Letta container as read-only
-`/logs` so custom Letta tools can read bot observation logs.
+`/logs` so custom Letta tools can read bot observation logs. It also mounts
+local `data/` into the Letta container as `/data` so schedule tools can update
+`/data/local.sqlite3`.
 
 ## Verify Letta
 
@@ -92,6 +94,9 @@ The registered tools are:
 - `list_observed_discord_channels`
 - `get_recent_discord_observations`
 - `get_latest_discord_channel_summary`
+- `list_discord_schedules`
+- `create_discord_schedule`
+- `cancel_discord_schedule`
 
 ## Run The Bot
 
@@ -271,6 +276,21 @@ automatically. Delivery attempts are appended to `logs/scheduled_tasks.jsonl`:
 
 ```sh
 uv run python scripts/show_recent_schedule_deliveries.py --limit 5
+```
+
+Letta can also create, list, and cancel schedules through custom tools. After
+changing `letta_discord_tools.py` or `compose.yaml`, restart Letta and re-register
+the tools:
+
+```sh
+docker compose up -d letta
+uv run python scripts/register_letta_discord_tools.py
+```
+
+For the first end-to-end test, use a clear ISO-like time in Discord, for example:
+
+```text
+はんなり、2026-06-01T03:00:00 に「スケジュールツールテスト」って言って
 ```
 
 Triggered records in `logs/discord_mentions.jsonl` contain minimal Discord
