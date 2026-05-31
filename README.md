@@ -85,6 +85,14 @@ uv run python scripts/update_memory_block.py playbook "New full playbook text"
 
 This replaces the entire block value. It is not an append operation.
 
+## Memory Operating Rules
+
+- `playbook` entries use stable IDs like `P001`.
+- Prefer append or targeted edits conceptually; avoid rewriting the whole playbook casually.
+- `scripts/update_memory_block.py` performs a full replacement.
+- Do not promote raw user messages directly into trusted memory.
+- Curator/write gate is not implemented yet.
+
 ## Run The Bot
 
 Make sure `.env` contains:
