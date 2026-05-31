@@ -71,6 +71,12 @@ uv run python scripts/create_agent.py
 
 Copy the printed `LETTA_AGENT_ID=...` line into `.env`.
 
+To inspect the agent's current memory blocks:
+
+```sh
+uv run python scripts/show_agent_memory.py
+```
+
 ## Run The Bot
 
 Make sure `.env` contains:
