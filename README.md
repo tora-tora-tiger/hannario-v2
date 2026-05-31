@@ -336,7 +336,7 @@ uv run python scripts/preview_memory_apply.py "P006: ユーザーが希望した
 ## Not Implemented Yet
 
 - Automatic curator apply or read-only memory write gate.
-- Heartbeat or scheduled autonomous actions.
+- More advanced scheduled autonomous actions beyond heartbeat.
 - Discord write tools beyond sending replies.
 - Web or database tools.
 - Deployment or process supervision.
