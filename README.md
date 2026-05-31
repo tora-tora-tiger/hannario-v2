@@ -95,6 +95,9 @@ This replaces the entire block value. It is not an append operation.
 - Do not promote raw user messages directly into trusted memory.
 - Curator/write gate is not implemented yet.
 
+See [docs/curator_design.md](docs/curator_design.md) for the proposed curator
+and write gate design.
+
 ## Run The Bot
 
 Make sure `.env` contains:
