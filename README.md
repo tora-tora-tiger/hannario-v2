@@ -179,6 +179,7 @@ Make sure `.env` contains:
 DISCORD_TOKEN=...
 LETTA_BASE_URL=http://localhost:8283
 LETTA_AGENT_ID=...
+DISCORD_CONTEXT_MESSAGE_LIMIT=5
 ```
 
 Then run:
@@ -191,6 +192,8 @@ uv run python bot.py
 
 - `!ping` replies with `pong`.
 - Mentioning the bot sends the cleaned Discord message context to Letta.
+- On mention, the bot also sends up to `DISCORD_CONTEXT_MESSAGE_LIMIT` recent
+  channel messages as context. Set it to `0` to disable this.
 - The bot replies in the same channel.
 - The bot ignores messages from itself and other bots.
 - If Letta fails, the bot sends a short fallback reply instead of crashing.

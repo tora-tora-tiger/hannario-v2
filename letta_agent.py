@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Any
 
 import discord
@@ -58,13 +59,22 @@ def ask_letta(
     agent_id: str,
     message: discord.Message,
     bot_user: discord.ClientUser,
+    recent_messages: Sequence[discord.Message] | None = None,
 ) -> str:
     response = client.agents.messages.create(
         agent_id=agent_id,
         messages=[
             MessageCreate(
                 role="user",
-                content=[TextContent(text=format_discord_message(message, bot_user))],
+                content=[
+                    TextContent(
+                        text=format_discord_message(
+                            message,
+                            bot_user,
+                            recent_messages,
+                        )
+                    )
+                ],
             )
         ],
     )
