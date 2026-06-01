@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import sqlite3
 import sys
 from pathlib import Path
@@ -118,7 +119,7 @@ def check_letta() -> bool:
     except URLError as exc:
         print(status_line(False, "letta http", str(exc)))
         return False
-    except TimeoutError as exc:
+    except (ConnectionResetError, TimeoutError, socket.timeout) as exc:
         print(status_line(False, "letta http", str(exc)))
         return False
 

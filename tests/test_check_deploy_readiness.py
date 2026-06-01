@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from scripts.check_deploy_readiness import (
     check_env,
+    check_letta,
     check_writable_directory,
     is_placeholder_env_value,
 )
@@ -80,6 +81,22 @@ class CheckDeployReadinessTest(unittest.TestCase):
 
         self.assertFalse(ok)
         self.assertEqual(detail, "not a directory")
+
+    def test_check_letta_reports_connection_reset_as_failure(self):
+        output = io.StringIO()
+
+        with (
+            patch.dict(os.environ, {"LETTA_BASE_URL": "http://localhost:8283"}),
+            patch(
+                "scripts.check_deploy_readiness.urlopen",
+                side_effect=ConnectionResetError("reset"),
+            ),
+            redirect_stdout(output),
+        ):
+            ok = check_letta()
+
+        self.assertFalse(ok)
+        self.assertIn("[FAIL] letta http: reset", output.getvalue())
 
 
 if __name__ == "__main__":
