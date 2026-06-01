@@ -10,6 +10,8 @@ Small Discord companion bot for a single private server.
   checks, and deployment readiness notes.
 - [Deployment](docs/deployment.md): VM deployment, user systemd, update flow,
   and backup targets.
+- [VM setup checklist](docs/vm_setup_checklist.md): supervised first-time VM
+  setup commands, one step at a time.
 - [Operator runbook](docs/operator_runbook.md): how an agent should inspect
   and operate the VM safely.
 - [Roadmap](docs/roadmap.md): current progress against the original handoff.

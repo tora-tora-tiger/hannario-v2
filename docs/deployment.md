@@ -52,6 +52,9 @@ This section is written for a step-by-step supervised setup. Do not run the
 whole section as one script. Execute one block, inspect the result, then move to
 the next block.
 
+For the condensed copy-paste checklist, use
+[vm_setup_checklist.md](vm_setup_checklist.md).
+
 Do not replace Ubuntu's system Python. Keep it for the OS. Use `uv` to install
 and run the project Python version. The Ubuntu `git` package is sufficient for
 this project after normal package updates.
