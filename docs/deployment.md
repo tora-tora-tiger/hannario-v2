@@ -360,6 +360,46 @@ uv run python scripts/operator_backup_inventory.py
 For the first deployment, a simple manual backup is acceptable. Automated
 rotation can come after the bot proves stable under supervised operation.
 
+Recommended manual backup flow from the VM repo directory:
+
+```sh
+systemctl --user stop hannario-bot.service
+docker compose stop letta
+mkdir -p backups
+tar -czf backups/hannario-state-$(date -u +%Y%m%dT%H%M%SZ).tar.gz \
+  data/local.sqlite3 logs memory_snapshots .env .env.letta
+docker run --rm \
+  -v hannario-v2_letta_pgdata:/volume:ro \
+  -v "$PWD/backups:/backup" \
+  alpine \
+  tar -czf /backup/letta-pgdata-$(date -u +%Y%m%dT%H%M%SZ).tar.gz -C /volume .
+docker compose up -d letta
+systemctl --user start hannario-bot.service
+```
+
+If the Docker volume name differs, check it first:
+
+```sh
+docker volume ls | grep letta
+```
+
+The Compose volume is declared as `letta_pgdata`; Docker usually creates it
+with the project prefix, for example `hannario-v2_letta_pgdata`.
+
+Recommended restore flow:
+
+1. Stop the bot and Letta before restoring state.
+2. Extract the app-state tarball from the repo directory so paths land back at
+   `data/local.sqlite3`, `logs/`, `memory_snapshots/`, `.env`, and `.env.letta`.
+3. Restore the Letta Docker volume from its tarball only when Letta data is
+   known to be damaged or the VM is being rebuilt.
+4. Start Letta first, then run readiness checks, then start the bot.
+5. Confirm with `operator_backup_inventory.py`, `check_deploy_readiness.py`,
+   and recent bot logs before leaving the service unattended.
+
+Do not commit backups or env files. Copy backup archives off the VM after long
+runs or before risky migrations.
+
 ## Conservative Production Defaults
 
 Recommended first always-on settings:

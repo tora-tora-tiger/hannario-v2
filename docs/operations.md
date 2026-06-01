@@ -165,11 +165,33 @@ Local web rejection:
 
 Before deploying or experimenting with memory changes, preserve:
 
-- Docker volume `letta_pgdata`
+- Docker volume `letta_pgdata` as declared in `compose.yaml`
 - `data/local.sqlite3`
 - `logs/`
 - `memory_snapshots/`
 - `.env` and `.env.letta` outside git
+
+Use the read-only inventory before taking a backup:
+
+```sh
+uv run python scripts/operator_backup_inventory.py
+```
+
+For supervised early operation, manual backups are enough. Take one:
+
+- before enabling long unattended runs
+- before changing Letta agent memory or tool definitions
+- before VM package upgrades or Docker changes
+- after a useful session that produced valuable logs or memory snapshots
+
+The app-state archive should contain `data/local.sqlite3`, `logs/`,
+`memory_snapshots/`, `.env`, and `.env.letta`. Letta/Postgres data should be
+backed up from its Docker volume separately. The actual Docker volume name will
+usually include the Compose project prefix, for example
+`hannario-v2_letta_pgdata`.
+
+Restore rule: stop the bot first, restore state, start Letta, run readiness
+checks, then start the bot. Never restore over a running bot process.
 
 ## Deployment Readiness
 

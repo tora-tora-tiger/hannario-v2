@@ -99,6 +99,37 @@ actions.
 The backup inventory command is read-only and reports which durable local
 targets exist before a backup run.
 
+## Backup Discipline
+
+Use backups as a checkpoint before changing runtime behavior, not only after a
+failure. The minimum protected set is:
+
+- Letta/Postgres Docker volume, usually `hannario-v2_letta_pgdata` on the VM
+- `data/local.sqlite3`
+- `logs/`
+- `memory_snapshots/`
+- `.env`
+- `.env.letta`
+
+Before requesting or running any risky operation, check:
+
+```sh
+uv run python scripts/operator_backup_inventory.py
+```
+
+Take a fresh backup before:
+
+- first unattended VM run
+- Letta volume migration or container image changes
+- memory-block cleanup
+- schema or schedule-store changes
+- package upgrades on the VM
+
+For restore, stop the user service first, restore files, start Letta, run
+readiness checks, then start the bot. If a restore was needed because of odd
+conversation behavior, inspect `operator_quality_review.py` before re-enabling
+proactive posting.
+
 ## What To Watch
 
 Operational warning signs:
