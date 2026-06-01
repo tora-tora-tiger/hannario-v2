@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+import os
+import shutil
+import sqlite3
+import sys
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+from dotenv import load_dotenv
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from hannario.schedule_db import get_db_path, initialize_db
+
+
+REQUIRED_ENV = ("DISCORD_TOKEN", "LETTA_BASE_URL", "LETTA_AGENT_ID")
+RECOMMENDED_PATHS = ("logs", "data", "memory_snapshots")
+
+
+def status_line(ok: bool, label: str, detail: str = "") -> str:
+    prefix = "OK" if ok else "FAIL"
+    if detail:
+        return f"[{prefix}] {label}: {detail}"
+    return f"[{prefix}] {label}"
+
+
+def check_command(name: str) -> bool:
+    path = shutil.which(name)
+    print(status_line(path is not None, f"command {name}", path or "not found"))
+    return path is not None
+
+
+def check_optional_command(name: str) -> None:
+    path = shutil.which(name)
+    prefix = "OK" if path else "WARN"
+    detail = path or "not found"
+    print(f"[{prefix}] optional command {name}: {detail}")
+
+
+def check_env() -> bool:
+    ok = True
+    for name in REQUIRED_ENV:
+        value = os.getenv(name)
+        present = bool(value)
+        ok = ok and present
+        detail = "set" if present else "missing"
+        print(status_line(present, f"env {name}", detail))
+    return ok
+
+
+def check_paths() -> bool:
+    ok = True
+    for raw_path in RECOMMENDED_PATHS:
+        path = Path(raw_path)
+        exists = path.exists()
+        ok = ok and exists
+        print(status_line(exists, f"path {raw_path}", "exists" if exists else "missing"))
+    return ok
+
+
+def check_sqlite() -> bool:
+    db_path = get_db_path()
+    try:
+        initialize_db(db_path)
+        with sqlite3.connect(db_path) as connection:
+            connection.execute("SELECT COUNT(*) FROM scheduled_tasks").fetchone()
+    except sqlite3.Error as exc:
+        print(status_line(False, "sqlite", str(exc)))
+        return False
+
+    print(status_line(True, "sqlite", str(db_path)))
+    return True
+
+
+def check_letta() -> bool:
+    base_url = (os.getenv("LETTA_BASE_URL") or "").rstrip("/")
+    if not base_url:
+        print(status_line(False, "letta http", "LETTA_BASE_URL missing"))
+        return False
+
+    request = Request(f"{base_url}/v1/health")
+    try:
+        with urlopen(request, timeout=5) as response:
+            status = response.status
+    except HTTPError as exc:
+        status = exc.code
+    except URLError as exc:
+        print(status_line(False, "letta http", str(exc)))
+        return False
+    except TimeoutError as exc:
+        print(status_line(False, "letta http", str(exc)))
+        return False
+
+    ok = 200 <= status < 500
+    print(status_line(ok, "letta http", f"status={status}"))
+    return ok
+
+
+def main() -> None:
+    load_dotenv()
+    load_dotenv(".env.letta")
+
+    checks = [
+        check_command("uv"),
+        check_command("python3"),
+        check_env(),
+        check_paths(),
+        check_sqlite(),
+        check_letta(),
+    ]
+    check_optional_command("docker")
+
+    if not all(checks):
+        raise SystemExit(1)
+
+    print("Deploy readiness checks passed.")
+
+
+if __name__ == "__main__":
+    main()
