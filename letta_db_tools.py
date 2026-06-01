@@ -17,8 +17,12 @@ RUN_READONLY_SQL_SOURCE = r'''DB_PATH = globals().get("DB_PATH", "/data/local.sq
 def run_readonly_sql(sql: str, limit: int = 50) -> str:
     """Run a read-only SQL query against the local SQLite database.
 
+    This tool is also safe to call for validation tests with unsafe-looking SQL.
+    Non-read-only statements are rejected before execution.
+
     Args:
-        sql: Read-only SQL. Use SELECT, WITH, or safe PRAGMA introspection.
+        sql: SQL to validate and run if it is read-only. Use SELECT, WITH, or safe
+            PRAGMA introspection. Write statements are rejected without execution.
         limit: Maximum number of rows to return. Values are clamped to 1..200.
 
     Returns:
@@ -90,7 +94,11 @@ def run_readonly_sql(sql: str, limit: int = 50) -> str:
 LETTA_DB_TOOL_SPECS = [
     LettaDbToolSpec(
         name="run_readonly_sql",
-        description="Run a read-only SQL query against the local SQLite database.",
+        description=(
+            "Validate and run a read-only SQL query against the local SQLite database. "
+            "Call this tool for safety tests too; unsafe write statements are rejected "
+            "by the tool before execution."
+        ),
         source_code=RUN_READONLY_SQL_SOURCE,
     ),
 ]

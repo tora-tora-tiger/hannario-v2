@@ -67,6 +67,12 @@ class LettaDbToolsTest(unittest.TestCase):
 
             self.assertIn("Rejected SQL", result)
 
+    def test_run_readonly_sql_description_mentions_safety_tests(self) -> None:
+        spec = next(spec for spec in LETTA_DB_TOOL_SPECS if spec.name == "run_readonly_sql")
+
+        self.assertIn("safety tests", spec.description)
+        self.assertIn("rejected", spec.description)
+
     def test_run_readonly_sql_rejects_multiple_statements(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "local.sqlite3"
