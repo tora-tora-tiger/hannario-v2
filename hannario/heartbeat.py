@@ -292,7 +292,7 @@ def consult_letta_for_heartbeat(
 
 
 def parse_heartbeat_decision(text: str) -> HeartbeatDecision:
-    stripped = text.strip()
+    stripped = strip_json_code_fence(text.strip())
     try:
         parsed = json.loads(stripped)
     except json.JSONDecodeError:
@@ -315,6 +315,22 @@ def parse_heartbeat_decision(text: str) -> HeartbeatDecision:
         channel_id=channel_id,
         message=str(parsed.get("message") or ""),
     )
+
+
+def strip_json_code_fence(text: str) -> str:
+    if not text.startswith("```"):
+        return text
+
+    lines = text.splitlines()
+    if len(lines) < 3:
+        return text
+
+    opening = lines[0].strip().lower()
+    closing = lines[-1].strip()
+    if opening not in {"```", "```json"} or closing != "```":
+        return text
+
+    return "\n".join(lines[1:-1]).strip()
 
 
 def parse_legacy_heartbeat_decision(text: str) -> HeartbeatDecision:

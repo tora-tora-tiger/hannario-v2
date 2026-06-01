@@ -260,6 +260,14 @@ class HeartbeatTest(unittest.TestCase):
         self.assertEqual(decision.channel_id, "123")
         self.assertEqual(decision.message, "大丈夫？")
 
+    def test_parse_heartbeat_decision_json_code_fence(self) -> None:
+        decision = parse_heartbeat_decision(
+            '```json\n{"action":"none","reason":"最近の観察がないため","channel_id":null,"message":""}\n```'
+        )
+
+        self.assertEqual(decision.action, "none")
+        self.assertEqual(decision.reason, "最近の観察がないため")
+
     def test_parse_heartbeat_decision_rejects_unknown_action(self) -> None:
         decision = parse_heartbeat_decision(
             '{"action":"post_now","reason":"bad","channel_id":"123","message":"hi"}'
