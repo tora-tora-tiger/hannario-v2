@@ -53,6 +53,18 @@ class VmOperatorReportTest(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertNotIn(token, command)
 
+    def test_build_remote_command_omits_limit_for_recommendations(self):
+        command = build_remote_command(
+            "/srv/hannario-v2",
+            "recommendations",
+            "24h",
+            12,
+        )
+
+        self.assertIn("scripts/operator_recommendations.py", command)
+        self.assertIn("--since 24h", command)
+        self.assertNotIn("--limit", command)
+
 
 if __name__ == "__main__":
     unittest.main()

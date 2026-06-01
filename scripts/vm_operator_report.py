@@ -12,6 +12,7 @@ REPORT_COMMANDS = {
     "quality": "scripts/operator_quality_review.py",
     "recommendations": "scripts/operator_recommendations.py",
 }
+REPORTS_WITH_LIMIT = {"summary", "quality"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,6 +39,9 @@ def build_remote_command(repo_path: str, report: str, since: str, limit: int) ->
     quoted_script = shlex.quote(script)
     quoted_since = shlex.quote(since)
     quoted_limit = shlex.quote(str(limit))
+    report_args = f"--since {quoted_since}"
+    if report in REPORTS_WITH_LIMIT:
+        report_args = f"{report_args} --limit {quoted_limit}"
 
     return "\n".join(
         [
@@ -52,7 +56,7 @@ def build_remote_command(repo_path: str, report: str, since: str, limit: int) ->
             '  printf "uv_missing=1\\n"',
             "  exit 3",
             "fi",
-            f"uv run python {quoted_script} --since {quoted_since} --limit {quoted_limit}",
+            f"uv run python {quoted_script} {report_args}",
         ]
     )
 
