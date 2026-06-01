@@ -77,6 +77,28 @@ class OperatorQualityReviewTest(unittest.TestCase):
 
         self.assertIn("odd_reply", categories)
 
+    def test_review_conversation_flags_tool_error(self):
+        record = {
+            "timestamp": "2026-06-01T00:00:00+00:00",
+            "channel_name": "general",
+            "author_display_name": "User",
+            "response_trigger": "mention",
+            "clean_content": "fetch it",
+            "bot_reply": "できませんでした",
+            "letta_tool_events": [
+                {
+                    "kind": "return",
+                    "name": "fetch_web_text",
+                    "status": "error",
+                    "text_preview": "network failed",
+                }
+            ],
+        }
+
+        categories = {item.category for item in review_conversation(record)}
+
+        self.assertIn("tool_error", categories)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -338,7 +338,8 @@ For the first end-to-end test, use a clear ISO-like time in Discord, for example
 
 Triggered records in `logs/discord_mentions.jsonl` contain minimal Discord
 context, the recent channel context sent to Letta, the optional supplemental
-channel summary sent to Letta, the response trigger, and the bot reply.
+channel summary sent to Letta, the response trigger, compact Letta tool
+call/return diagnostics, and the bot reply.
 
 Observation records in `logs/discord_observations.jsonl` contain minimal
 Discord context and cleaned message content. They do not include bot replies
@@ -369,6 +370,7 @@ Useful commands:
 ```sh
 uv run python scripts/operator_report.py --since 24h --limit 12
 uv run python scripts/operator_quality_review.py --since 24h --limit 30
+uv run python scripts/operator_recommendations.py --since 24h
 uv run python scripts/show_recent_mentions.py
 uv run python scripts/show_recent_observations.py
 uv run python scripts/show_recent_heartbeats.py

@@ -177,6 +177,22 @@ def count_invalid(records: list[dict[str, Any]]) -> int:
     return sum(1 for record in records if record.get("_invalid_json"))
 
 
+def tool_events_from_mentions(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    events = []
+    for record in records:
+        raw_events = record.get("letta_tool_events") or []
+        if isinstance(raw_events, list):
+            events.extend(event for event in raw_events if isinstance(event, dict))
+    return events
+
+
+def is_tool_return_error(event: dict[str, Any]) -> bool:
+    if event.get("kind") != "return":
+        return False
+    status = str(event.get("status") or "").strip().lower()
+    return bool(status and status not in {"success", "ok"})
+
+
 def print_counts(title: str, counter: Counter[str]) -> None:
     print(title)
     if not counter:
@@ -195,6 +211,13 @@ def print_conversation_summary(records: list[dict[str, Any]], limit: int) -> Non
     trigger_counts = Counter(str(record.get("response_trigger") or "mention") for record in records)
     channel_counts = Counter(channel_label(record) for record in records)
     fallback_count = sum(1 for record in records if record.get("bot_reply") == FALLBACK_REPLY)
+    tool_events = tool_events_from_mentions(records)
+    tool_call_counts = Counter(
+        str(event.get("name") or "-")
+        for event in tool_events
+        if event.get("kind") == "call"
+    )
+    tool_error_count = sum(1 for event in tool_events if is_tool_return_error(event))
     memory_like_count = sum(
         1
         for record in records
@@ -203,9 +226,13 @@ def print_conversation_summary(records: list[dict[str, Any]], limit: int) -> Non
 
     print(f"Triggered replies: {len(records)}")
     print(f"Fallback replies: {fallback_count}")
+    print(f"Letta tool calls logged: {sum(tool_call_counts.values())}")
+    print(f"Letta tool return errors logged: {tool_error_count}")
     print(f"Records mentioning memory tools: {memory_like_count}")
     print_counts("By trigger:", trigger_counts)
     print_counts("By channel:", channel_counts)
+    if tool_call_counts:
+        print_counts("By Letta tool:", tool_call_counts)
 
     print()
     print("Recent triggered replies:")
@@ -315,6 +342,14 @@ def print_warnings(
     fallback_count = sum(1 for record in mention_records if record.get("bot_reply") == FALLBACK_REPLY)
     if fallback_count:
         warnings.append(f"{fallback_count} fallback replies indicate Letta/API failures.")
+
+    tool_error_count = sum(
+        1
+        for event in tool_events_from_mentions(mention_records)
+        if is_tool_return_error(event)
+    )
+    if tool_error_count:
+        warnings.append(f"{tool_error_count} Letta tool return errors need review.")
 
     heartbeat_posts = sum(1 for record in heartbeat_records if record.get("post_should_post") is True)
     if heartbeat_posts:

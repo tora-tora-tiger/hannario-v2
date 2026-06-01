@@ -2,7 +2,12 @@ import unittest
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
-from hannario.conversation_log import mention_log_record, observation_log_record
+from hannario.conversation_log import (
+    mention_log_record,
+    observation_log_record,
+    tool_event_log_record,
+)
+from hannario.letta_agent import LettaToolEvent
 
 
 def fake_message(
@@ -139,6 +144,63 @@ class ConversationLogTest(unittest.TestCase):
         )
 
         self.assertEqual(record["response_trigger"], "wake_word")
+
+    def test_mention_log_record_includes_letta_tool_events(self) -> None:
+        bot_user = SimpleNamespace(id=999)
+        current_message = fake_message("<@999> チャンネル一覧", message_id=103)
+        events = [
+            LettaToolEvent(
+                kind="call",
+                name="list_observed_discord_channels",
+                arguments="{}",
+            ),
+            LettaToolEvent(
+                kind="return",
+                name="list_observed_discord_channels",
+                status="success",
+                text="#general: 1 observation",
+            ),
+        ]
+
+        record = mention_log_record(
+            current_message,
+            bot_user,
+            "一覧です",
+            letta_tool_events=events,
+        )
+
+        self.assertEqual(
+            record["letta_tool_events"],
+            [
+                {
+                    "kind": "call",
+                    "name": "list_observed_discord_channels",
+                    "arguments": "{}",
+                    "status": None,
+                    "text_preview": None,
+                },
+                {
+                    "kind": "return",
+                    "name": "list_observed_discord_channels",
+                    "arguments": None,
+                    "status": "success",
+                    "text_preview": "#general: 1 observation",
+                },
+            ],
+        )
+
+    def test_tool_event_log_record_truncates_return_text(self) -> None:
+        event = LettaToolEvent(
+            kind="return",
+            name="tool",
+            status="success",
+            text="x" * 600,
+        )
+
+        record = tool_event_log_record(event)
+
+        self.assertEqual(len(record["text_preview"]), 503)
+        self.assertTrue(record["text_preview"].endswith("..."))
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ try:
         author_label,
         channel_label,
         filter_since,
+        is_tool_return_error,
         parse_lookback,
         read_jsonl,
         truncate,
@@ -29,6 +30,7 @@ except ModuleNotFoundError:
         author_label,
         channel_label,
         filter_since,
+        is_tool_return_error,
         parse_lookback,
         read_jsonl,
         truncate,
@@ -168,6 +170,25 @@ def review_conversation(record: dict[str, Any]) -> list[ReviewItem]:
                 reason="Reply contains stale or internal-sounding wording.",
                 user_text=user_text,
                 bot_reply=bot_reply,
+            )
+        )
+
+    for event in record.get("letta_tool_events") or []:
+        if not isinstance(event, dict) or not is_tool_return_error(event):
+            continue
+        items.append(
+            ReviewItem(
+                severity="high",
+                category="tool_error",
+                timestamp=timestamp,
+                channel=channel,
+                author=author,
+                reason=(
+                    f"Letta tool `{event.get('name') or '-'}` returned "
+                    f"status `{event.get('status') or '-'}`."
+                ),
+                user_text=user_text,
+                bot_reply=str(event.get("text_preview") or ""),
             )
         )
 

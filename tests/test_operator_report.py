@@ -45,6 +45,19 @@ class OperatorReportTest(unittest.TestCase):
                         "response_trigger": "mention",
                         "clean_content": "hello",
                         "bot_reply": operator_report.FALLBACK_REPLY,
+                        "letta_tool_events": [
+                            {
+                                "kind": "call",
+                                "name": "fetch_web_text",
+                                "arguments": "{}",
+                            },
+                            {
+                                "kind": "return",
+                                "name": "fetch_web_text",
+                                "status": "error",
+                                "text_preview": "failed",
+                            },
+                        ],
                     },
                     ensure_ascii=False,
                 )
@@ -132,10 +145,13 @@ class OperatorReportTest(unittest.TestCase):
             self.assertIn("# Operator Report", text)
             self.assertIn("Triggered replies: 1", text)
             self.assertIn("Fallback replies: 1", text)
+            self.assertIn("Letta tool calls logged: 1", text)
+            self.assertIn("Letta tool return errors logged: 1", text)
             self.assertIn("Heartbeat decisions: 1", text)
             self.assertIn("Schedule records: 1", text)
             self.assertIn("Memory write audit records: 1", text)
             self.assertIn("fallback replies indicate Letta/API failures", text)
+            self.assertIn("Letta tool return errors need review", text)
 
 
 if __name__ == "__main__":

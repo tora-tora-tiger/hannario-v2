@@ -30,6 +30,25 @@ def context_log_record(
     }
 
 
+def tool_event_log_record(event: Any) -> dict[str, Any]:
+    return {
+        "kind": getattr(event, "kind", None),
+        "name": getattr(event, "name", None),
+        "arguments": getattr(event, "arguments", None),
+        "status": getattr(event, "status", None),
+        "text_preview": compact_tool_text(getattr(event, "text", None)),
+    }
+
+
+def compact_tool_text(value: Any, limit: int = 500) -> str | None:
+    if value is None:
+        return None
+    text = " ".join(str(value).split())
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}..."
+
+
 def mention_log_record(
     message: discord.Message,
     bot_user: discord.ClientUser,
@@ -37,6 +56,7 @@ def mention_log_record(
     recent_messages: Sequence[discord.Message] | None = None,
     channel_summary: dict[str, Any] | None = None,
     response_trigger: str = "mention",
+    letta_tool_events: Sequence[Any] | None = None,
 ) -> dict[str, Any]:
     guild = message.guild
     channel_name = getattr(message.channel, "name", "direct-message")
@@ -57,6 +77,9 @@ def mention_log_record(
             for recent_message in recent_messages or []
         ],
         "channel_summary": compact_summary_record(channel_summary),
+        "letta_tool_events": [
+            tool_event_log_record(event) for event in letta_tool_events or []
+        ],
         "bot_reply": bot_reply,
     }
 
@@ -96,6 +119,7 @@ def log_mention_reply(
     recent_messages: Sequence[discord.Message] | None = None,
     channel_summary: dict[str, Any] | None = None,
     response_trigger: str = "mention",
+    letta_tool_events: Sequence[Any] | None = None,
     path: Path = DEFAULT_LOG_PATH,
 ) -> None:
     append_jsonl(
@@ -107,6 +131,7 @@ def log_mention_reply(
             recent_messages=recent_messages,
             channel_summary=channel_summary,
             response_trigger=response_trigger,
+            letta_tool_events=letta_tool_events,
         ),
     )
 

@@ -497,6 +497,7 @@ class HannarioClient(discord.Client):
                     channel_summary = None
 
         async with message.channel.typing():
+            letta_tool_events = []
             try:
                 letta_reply = await asyncio.wait_for(
                     asyncio.to_thread(
@@ -515,15 +516,16 @@ class HannarioClient(discord.Client):
                 reply = LETTA_ERROR_REPLY
             else:
                 reply = letta_reply.text
-                log_letta_tool_events(message.id, letta_reply.tool_events)
-                if has_memory_write_tool_call(letta_reply.tool_events):
+                letta_tool_events = letta_reply.tool_events
+                log_letta_tool_events(message.id, letta_tool_events)
+                if has_memory_write_tool_call(letta_tool_events):
                     try:
                         await asyncio.to_thread(
                             audit_letta_memory_writes,
                             self.letta_client,
                             self.letta_agent_id,
                             message.id,
-                            letta_reply.tool_events,
+                            letta_tool_events,
                         )
                     except Exception:
                         logging.exception(
@@ -550,6 +552,7 @@ class HannarioClient(discord.Client):
             recent_messages=recent_messages,
             channel_summary=channel_summary,
             response_trigger=decision.trigger,
+            letta_tool_events=letta_tool_events,
         )
 
 
