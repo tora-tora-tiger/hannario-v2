@@ -3,6 +3,7 @@
 .venv/
 logs/
 memory_snapshots/
+backups/
 data/*.sqlite3
 data/*.sqlite3-*
 __pycache__/
