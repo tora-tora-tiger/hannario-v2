@@ -44,6 +44,95 @@ Discord
               -> Letta memory and tools
 ```
 
+## Runtime Diagram
+
+```mermaid
+flowchart TB
+    user["Discord users"]
+    discord["Discord gateway / channels"]
+
+    subgraph vm["Dedicated VM vm-204"]
+        systemd["systemd user service\nhannario-bot.service"]
+        bot["bot.py\nhannario.bot.HannarioClient"]
+
+        subgraph loops["Bot background loops"]
+            heartbeat["heartbeat loop\nprivate Letta consult + optional post"]
+            scheduler["schedule loop\npost / think / observe / follow_up"]
+            autosummary["auto channel summary loop"]
+        end
+
+        policy["response policy\nmention / reply / wake word / active / random / silence"]
+        context["discord_context\nrecent channel messages + time context"]
+        localdb[("SQLite\ndata/local.sqlite3")]
+        logs[("JSONL logs\nlogs/*.jsonl")]
+        snapshots[("memory snapshots\nmemory_snapshots/")]
+        journal["journalctl\nuser service logs"]
+
+        subgraph letta_boundary["Letta boundary - Docker Compose"]
+            letta["Letta server\nhttp://localhost:8283"]
+            agent["Letta agent\npersona / playbook / message history"]
+            memory["Letta memory blocks"]
+            tool_registry["custom tool registry"]
+            tool_exec["tool execution sandbox"]
+            letta_pg[("Docker volume\nhannario-v2_letta_pgdata")]
+        end
+    end
+
+    openai["OpenAI API\nLLM / embeddings / summaries"]
+    publicweb["Public web pages"]
+    operator["Operator / Codex\nread-only SSH reports"]
+    backups[("manual backups\nbackups/*.tar.gz")]
+
+    user --> discord
+    discord --> bot
+    systemd --> bot
+    bot --> policy
+    bot --> context
+    bot --> logs
+    bot --> journal
+
+    policy -->|triggered reply| letta
+    context -->|message input| letta
+    heartbeat -->|private decision prompt| letta
+    scheduler --> localdb
+    scheduler -->|internal task consult| letta
+    autosummary -->|summary request| openai
+    autosummary --> logs
+
+    letta --> agent
+    agent --> memory
+    letta --> tool_registry
+    tool_registry --> tool_exec
+    letta --> letta_pg
+    letta -->|model calls| openai
+
+    tool_exec -->|read-only observations| logs
+    tool_exec -->|schedule tools| localdb
+    tool_exec -->|guarded fetch| publicweb
+
+    operator -->|ssh read-only| journal
+    operator -->|ssh read-only| logs
+    operator -->|ssh read-only| localdb
+    operator -->|status checks| systemd
+
+    localdb --> backups
+    logs --> backups
+    snapshots --> backups
+    letta_pg --> backups
+```
+
+Key boundary:
+
+- The bot process owns Discord I/O, trigger decisions, local logs, and SQLite
+  schedule execution.
+- Letta owns agent state, message history, memory blocks, and registered custom
+  tools.
+- Letta tools are intentionally narrow: they read observation logs, read/write
+  schedule rows through approved schedule tools, run read-only SQL, and fetch
+  public web pages with local/private network blocking.
+- Operator access is read-only by default. VM writes, service restarts, package
+  changes, and backup/restore steps are deliberate operations.
+
 Important paths:
 
 - `bot.py`: compatibility entrypoint for `uv run python bot.py`
