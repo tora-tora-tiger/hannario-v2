@@ -66,6 +66,15 @@ When the bot is running, a routine operation pass should inspect:
 6. app logs: recent mentions, observations, heartbeats, scheduled deliveries
 7. memory drift: latest memory write audit and snapshot diff
 
+Use the local operator report as the first pass over app logs:
+
+```sh
+uv run python scripts/operator_report.py --since 24h --limit 12
+```
+
+This summarizes triggered replies, observed conversations, heartbeat decisions,
+scheduled task deliveries, memory write audits, and obvious warnings.
+
 ## What To Watch
 
 Operational warning signs:
