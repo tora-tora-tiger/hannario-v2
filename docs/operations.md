@@ -204,6 +204,9 @@ uv run python scripts/check_deploy_readiness.py
 It checks that required env vars are present and not placeholder values, without
 printing their secret values. It also checks local durable paths, SQLite access,
 and Letta HTTP reachability.
+The durable directories `logs/`, `data/`, and `memory_snapshots/` must be
+writable by the bot user. If Docker created `logs/` before the bot did, fix
+ownership before starting the bot.
 
 Before running unattended, set conservative values:
 

@@ -132,7 +132,8 @@ Run from the repo directory:
 
 ```sh
 uv sync
-mkdir -p memory_snapshots
+mkdir -p logs data memory_snapshots
+chmod u+rwX logs data memory_snapshots
 uv run python -m unittest discover -s tests
 ```
 

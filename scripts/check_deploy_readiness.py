@@ -73,10 +73,20 @@ def check_paths() -> bool:
     ok = True
     for raw_path in RECOMMENDED_PATHS:
         path = Path(raw_path)
-        exists = path.exists()
-        ok = ok and exists
-        print(status_line(exists, f"path {raw_path}", "exists" if exists else "missing"))
+        valid, detail = check_writable_directory(path)
+        ok = ok and valid
+        print(status_line(valid, f"path {raw_path}", detail))
     return ok
+
+
+def check_writable_directory(path: Path) -> tuple[bool, str]:
+    if not path.exists():
+        return False, "missing"
+    if not path.is_dir():
+        return False, "not a directory"
+    if not os.access(path, os.R_OK | os.W_OK | os.X_OK):
+        return False, "not writable"
+    return True, "writable directory"
 
 
 def check_sqlite() -> bool:

@@ -1,10 +1,16 @@
 import io
 import os
+import tempfile
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
-from scripts.check_deploy_readiness import check_env, is_placeholder_env_value
+from scripts.check_deploy_readiness import (
+    check_env,
+    check_writable_directory,
+    is_placeholder_env_value,
+)
 
 
 class CheckDeployReadinessTest(unittest.TestCase):
@@ -51,6 +57,29 @@ class CheckDeployReadinessTest(unittest.TestCase):
         self.assertIn("[FAIL] env DISCORD_TOKEN: placeholder", rendered)
         self.assertIn("[FAIL] env LETTA_AGENT_ID: placeholder", rendered)
         self.assertIn("[FAIL] env OPENAI_API_KEY: placeholder", rendered)
+
+    def test_check_writable_directory_reports_missing_path(self):
+        ok, detail = check_writable_directory(Path("missing-path"))
+
+        self.assertFalse(ok)
+        self.assertEqual(detail, "missing")
+
+    def test_check_writable_directory_accepts_writable_directory(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ok, detail = check_writable_directory(Path(temp_dir))
+
+        self.assertTrue(ok)
+        self.assertEqual(detail, "writable directory")
+
+    def test_check_writable_directory_rejects_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "file"
+            path.write_text("content", encoding="utf-8")
+
+            ok, detail = check_writable_directory(path)
+
+        self.assertFalse(ok)
+        self.assertEqual(detail, "not a directory")
 
 
 if __name__ == "__main__":
