@@ -46,26 +46,109 @@ This means the next VM setup work requires write operations and likely `sudo`.
 Those commands should be run by the operator or explicitly approved before an
 agent executes them.
 
-## Required VM Setup
+## Manual VM Setup Plan
 
-Install or confirm:
+This section is written for a step-by-step supervised setup. Do not run the
+whole section as one script. Execute one block, inspect the result, then move to
+the next block.
 
-- `git`
-- `uv`
-- Docker Engine with Compose plugin
-- user access to Docker, or an agreed service layout that starts Letta with
-  system-level Docker
+Do not replace Ubuntu's system Python. Keep it for the OS. Use `uv` to install
+and run the project Python version. The Ubuntu `git` package is sufficient for
+this project after normal package updates.
 
-Do not replace Ubuntu's system Python. Use `uv` to install and run the project
-Python version instead. The Ubuntu `git` package is sufficient for this project.
+### Step 0: Read-Only Baseline
 
-Then clone or update the repository under:
+Run from the local development machine:
 
-```text
-/home/keitaito/hannario-v2
+```sh
+uv run python scripts/vm_readonly_status.py --host 172.17.2.4
 ```
 
-Create:
+Expected on a fresh VM:
+
+- Ubuntu 24.04
+- `git` and `python3` may exist
+- `uv` missing
+- Docker missing
+- repo missing
+- service missing
+
+### Step 1: OS Package Baseline
+
+Requires `sudo` on the VM. Run interactively on the VM when ready:
+
+```sh
+sudo apt update
+sudo apt upgrade
+sudo apt install -y ca-certificates curl gnupg git
+```
+
+Check:
+
+```sh
+git --version
+curl --version
+```
+
+### Step 2: Install Docker Engine
+
+Requires `sudo` on the VM. Follow the official Docker Engine installation flow
+for Ubuntu. The expected outcome is:
+
+```sh
+docker --version
+docker compose version
+```
+
+Add the operator user to the `docker` group if using Docker without `sudo`:
+
+```sh
+sudo usermod -aG docker keitaito
+```
+
+Then log out and back in before checking:
+
+```sh
+docker ps
+```
+
+If Docker group access is not desired, keep Docker as a sudo-managed service and
+adjust the operational commands accordingly.
+
+### Step 3: Install uv
+
+Run as the normal user, not with `sudo`:
+
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Start a new shell or source the shell profile, then check:
+
+```sh
+uv --version
+```
+
+### Step 4: Clone Repository
+
+Run as the normal user:
+
+```sh
+cd /home/keitaito
+git clone <REPOSITORY_URL> hannario-v2
+cd /home/keitaito/hannario-v2
+```
+
+Check:
+
+```sh
+git status --short
+git log -1 --oneline
+```
+
+### Step 5: Create Environment Files
+
+Run as the normal user:
 
 ```sh
 cp .env.example .env
@@ -74,27 +157,105 @@ cp .env.letta.example .env.letta
 
 Fill secrets locally on the VM:
 
-- `.env`: `DISCORD_TOKEN`, `LETTA_AGENT_ID`
+- `.env`: `DISCORD_TOKEN`
 - `.env.letta`: `OPENAI_API_KEY`
 
-Do not commit these files.
+Keep `LETTA_AGENT_ID` as a placeholder until the agent is created.
 
-## First Deploy
+Recommended first VM settings in `.env`:
 
-From the repo directory on the VM:
+```env
+DISCORD_RANDOM_REPLY_ENABLED=0
+DISCORD_AUTO_SUMMARY_ENABLED=0
+DISCORD_HEARTBEAT_ENABLED=1
+DISCORD_HEARTBEAT_INTERVAL_SECONDS=900
+DISCORD_HEARTBEAT_CONSULT_LETTA_ENABLED=1
+DISCORD_HEARTBEAT_POST_ENABLED=0
+DISCORD_SCHEDULE_ENABLED=1
+DISCORD_SCHEDULE_INTERVAL_SECONDS=30
+DISCORD_SCHEDULE_INTERNAL_CONSULT_LETTA_ENABLED=1
+HANNARIO_DB_PATH=data/local.sqlite3
+```
+
+Do not commit `.env` or `.env.letta`.
+
+### Step 6: Install Python Dependencies
+
+Run from the repo directory:
 
 ```sh
 uv sync
+uv run python -m unittest discover -s tests
+```
+
+### Step 7: Start Letta
+
+Run from the repo directory:
+
+```sh
 docker compose up -d letta
+docker compose ps
+docker compose logs --tail 100 letta
+```
+
+### Step 8: Create Agent And Register Tools
+
+Run from the repo directory:
+
+```sh
 uv run python scripts/smoke_letta.py
 uv run python scripts/create_agent.py
+```
+
+Copy the printed `LETTA_AGENT_ID=...` into `.env`, then run:
+
+```sh
 uv run python scripts/register_letta_tools.py
 uv run python scripts/init_schedule_db.py
 uv run python scripts/check_deploy_readiness.py
 ```
 
-Copy the `LETTA_AGENT_ID=...` printed by `create_agent.py` into `.env`, then
-run `register_letta_tools.py`.
+### Step 9: Manual Bot Smoke
+
+Before systemd, run the bot in the foreground:
+
+```sh
+uv run python bot.py
+```
+
+Use Discord to confirm one mention reply. Stop with `Ctrl-C`.
+
+### Step 10: Install User systemd Service
+
+Run as the normal user from the repo directory:
+
+```sh
+mkdir -p ~/.config/systemd/user
+cp deploy/systemd/hannario-bot.service.example ~/.config/systemd/user/hannario-bot.service
+systemctl --user daemon-reload
+systemctl --user enable --now hannario-bot.service
+systemctl --user status hannario-bot.service --no-pager
+```
+
+For a user service to keep running after logout, this privileged host operation
+may be required:
+
+```sh
+sudo loginctl enable-linger keitaito
+```
+
+### Step 11: Post-Deploy Read-Only Check
+
+Run from the local development machine:
+
+```sh
+uv run python scripts/vm_readonly_status.py --host 172.17.2.4
+uv run python scripts/vm_operator_report.py --host 172.17.2.4 --report summary --since 24h --limit 12
+uv run python scripts/vm_operator_report.py --host 172.17.2.4 --report quality --since 24h --limit 30
+uv run python scripts/vm_operator_report.py --host 172.17.2.4 --report recommendations --since 24h
+```
+
+At this point, leave proactive posting disabled until logs have been reviewed.
 
 ## User systemd
 
@@ -104,7 +265,7 @@ A user-service example is available at:
 deploy/systemd/hannario-bot.service.example
 ```
 
-Install manually on the VM:
+Install manually on the VM as described in Step 10:
 
 ```sh
 mkdir -p ~/.config/systemd/user
