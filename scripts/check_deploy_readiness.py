@@ -12,11 +12,17 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from hannario.schedule_db import get_db_path, initialize_db
+from hannario.schedule_db import db_path_from_env, initialize_database
 
 
-REQUIRED_ENV = ("DISCORD_TOKEN", "LETTA_BASE_URL", "LETTA_AGENT_ID")
+REQUIRED_ENV = ("DISCORD_TOKEN", "LETTA_BASE_URL", "LETTA_AGENT_ID", "OPENAI_API_KEY")
 RECOMMENDED_PATHS = ("logs", "data", "memory_snapshots")
+PLACEHOLDER_ENV_VALUES = {
+    "your_discord_bot_token_here",
+    "your_letta_agent_id_here",
+    "your_openai_api_key_here",
+    "...",
+}
 
 
 def status_line(ok: bool, label: str, detail: str = "") -> str:
@@ -44,10 +50,23 @@ def check_env() -> bool:
     for name in REQUIRED_ENV:
         value = os.getenv(name)
         present = bool(value)
-        ok = ok and present
-        detail = "set" if present else "missing"
-        print(status_line(present, f"env {name}", detail))
+        placeholder = is_placeholder_env_value(value)
+        valid = present and not placeholder
+        ok = ok and valid
+        if not present:
+            detail = "missing"
+        elif placeholder:
+            detail = "placeholder"
+        else:
+            detail = "set"
+        print(status_line(valid, f"env {name}", detail))
     return ok
+
+
+def is_placeholder_env_value(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip() in PLACEHOLDER_ENV_VALUES
 
 
 def check_paths() -> bool:
@@ -61,9 +80,9 @@ def check_paths() -> bool:
 
 
 def check_sqlite() -> bool:
-    db_path = get_db_path()
+    db_path = db_path_from_env()
     try:
-        initialize_db(db_path)
+        initialize_database(db_path)
         with sqlite3.connect(db_path) as connection:
             connection.execute("SELECT COUNT(*) FROM scheduled_tasks").fetchone()
     except sqlite3.Error as exc:
