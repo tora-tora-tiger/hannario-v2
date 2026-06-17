@@ -186,7 +186,8 @@ uv run python bot.py
 - The bot replies when it is mentioned, when a message replies to the bot, or
   when a message contains one of `DISCORD_WAKE_WORDS`.
 - If a message is in a category listed by `DISCORD_RESPONSE_BLOCKED_CATEGORY_IDS`
-  or `DISCORD_RESPONSE_BLOCKED_CATEGORY_NAMES`, the bot does not reply there.
+  or `DISCORD_RESPONSE_BLOCKED_CATEGORY_NAMES`, the bot does not generate normal
+  replies there. The `!ping` command still replies with `pong`.
 - After the bot replies, the channel stays active for
   `DISCORD_ACTIVE_REPLY_WINDOW_SECONDS`; during that window, ordinary follow-up
   messages in the same channel can also trigger replies. Active follow-up
