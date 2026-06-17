@@ -141,6 +141,8 @@ DISCORD_WAKE_WORDS=はんなり男,はんなり
 DISCORD_SILENCE_PHRASES=黙って,消えて,静かにして,もういい,呼んでない
 DISCORD_REPLY_TRIGGER_ENABLED=1
 DISCORD_WAKE_WORD_TRIGGER_ENABLED=1
+DISCORD_RESPONSE_BLOCKED_CATEGORY_IDS=
+DISCORD_RESPONSE_BLOCKED_CATEGORY_NAMES=
 DISCORD_ACTIVE_REPLY_ENABLED=1
 DISCORD_SILENCE_ENABLED=1
 DISCORD_RANDOM_REPLY_ENABLED=0
@@ -183,6 +185,8 @@ uv run python bot.py
 - `!ping` replies with `pong`.
 - The bot replies when it is mentioned, when a message replies to the bot, or
   when a message contains one of `DISCORD_WAKE_WORDS`.
+- If a message is in a category listed by `DISCORD_RESPONSE_BLOCKED_CATEGORY_IDS`
+  or `DISCORD_RESPONSE_BLOCKED_CATEGORY_NAMES`, the bot does not reply there.
 - After the bot replies, the channel stays active for
   `DISCORD_ACTIVE_REPLY_WINDOW_SECONDS`; during that window, ordinary follow-up
   messages in the same channel can also trigger replies. Active follow-up

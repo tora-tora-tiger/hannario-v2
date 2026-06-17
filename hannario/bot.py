@@ -409,9 +409,10 @@ class HannarioClient(discord.Client):
 
         if not decision.should_respond:
             await asyncio.to_thread(log_observed_message, message, self.user)
-            if is_ping_command(message):
+            if decision.trigger != "category_blocked" and is_ping_command(message):
                 await message.channel.send("pong")
             if decision.trigger in {
+                "category_blocked",
                 "silenced",
                 "active_cooldown",
                 "active_repeated_content",

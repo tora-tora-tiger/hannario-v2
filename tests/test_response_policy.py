@@ -25,11 +25,21 @@ from hannario.response_policy import (
 
 class ResponsePolicyTest(unittest.TestCase):
     def message(self, content: str, **kwargs: object) -> SimpleNamespace:
+        category = None
+        if "category_id" in kwargs or "category_name" in kwargs:
+            category = SimpleNamespace(
+                id=kwargs.get("category_id"),
+                name=kwargs.get("category_name"),
+            )
         return SimpleNamespace(
             mentions=kwargs.get("mentions", []),
             reference=kwargs.get("reference"),
             content=content,
-            channel=SimpleNamespace(id=kwargs.get("channel_id", 123)),
+            channel=SimpleNamespace(
+                id=kwargs.get("channel_id", 123),
+                category_id=kwargs.get("category_id"),
+                category=category,
+            ),
         )
 
     def test_parse_wake_words_defaults_when_missing(self) -> None:
@@ -113,6 +123,32 @@ class ResponsePolicyTest(unittest.TestCase):
         )
 
         self.assertFalse(decision.should_respond)
+
+    def test_blocked_category_id_blocks_mention_response(self) -> None:
+        bot_user = SimpleNamespace(id=1)
+        message = self.message("呼んだよ", mentions=[bot_user], category_id=999)
+
+        decision = decide_response(
+            message,
+            bot_user,
+            ResponsePolicyConfig(blocked_category_ids=("999",)),
+        )
+
+        self.assertFalse(decision.should_respond)
+        self.assertEqual(decision.trigger, "category_blocked")
+
+    def test_blocked_category_name_blocks_wake_word_response(self) -> None:
+        bot_user = SimpleNamespace(id=1)
+        message = self.message("はんなり", category_id=999, category_name="No Bot")
+
+        decision = decide_response(
+            message,
+            bot_user,
+            ResponsePolicyConfig(blocked_category_names=("no bot",)),
+        )
+
+        self.assertFalse(decision.should_respond)
+        self.assertEqual(decision.trigger, "category_blocked")
 
     def test_is_resolved_reply_to_bot(self) -> None:
         bot_user = SimpleNamespace(id=1)
@@ -486,6 +522,8 @@ class ResponsePolicyTest(unittest.TestCase):
             {
                 "DISCORD_WAKE_WORDS": "はんなり男,はんなり",
                 "DISCORD_SILENCE_PHRASES": "黙って,消えて",
+                "DISCORD_RESPONSE_BLOCKED_CATEGORY_IDS": "111, 222",
+                "DISCORD_RESPONSE_BLOCKED_CATEGORY_NAMES": "botなし, No Bot",
                 "DISCORD_REPLY_TRIGGER_ENABLED": "0",
                 "DISCORD_WAKE_WORD_TRIGGER_ENABLED": "1",
                 "DISCORD_ACTIVE_REPLY_ENABLED": "1",
@@ -504,6 +542,8 @@ class ResponsePolicyTest(unittest.TestCase):
 
         self.assertEqual(config.wake_words, ("はんなり男", "はんなり"))
         self.assertEqual(config.silence_phrases, ("黙って", "消えて"))
+        self.assertEqual(config.blocked_category_ids, ("111", "222"))
+        self.assertEqual(config.blocked_category_names, ("botなし", "No Bot"))
         self.assertFalse(config.reply_trigger_enabled)
         self.assertTrue(config.wake_word_trigger_enabled)
         self.assertTrue(config.active_reply_enabled)

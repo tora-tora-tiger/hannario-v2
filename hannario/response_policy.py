@@ -20,6 +20,8 @@ TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 class ResponsePolicyConfig:
     wake_words: tuple[str, ...] = DEFAULT_WAKE_WORDS
     silence_phrases: tuple[str, ...] = DEFAULT_SILENCE_PHRASES
+    blocked_category_ids: tuple[str, ...] = ()
+    blocked_category_names: tuple[str, ...] = ()
     reply_trigger_enabled: bool = True
     wake_word_trigger_enabled: bool = True
     active_reply_enabled: bool = True
@@ -102,10 +104,20 @@ def parse_silence_phrases(value: str | None) -> tuple[str, ...]:
     return tuple(phrase.strip() for phrase in value.split(",") if phrase.strip())
 
 
+def parse_csv_values(value: str | None) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
 def load_response_policy_config_from_env() -> ResponsePolicyConfig:
     return ResponsePolicyConfig(
         wake_words=parse_wake_words(os.getenv("DISCORD_WAKE_WORDS")),
         silence_phrases=parse_silence_phrases(os.getenv("DISCORD_SILENCE_PHRASES")),
+        blocked_category_ids=parse_csv_values(os.getenv("DISCORD_RESPONSE_BLOCKED_CATEGORY_IDS")),
+        blocked_category_names=parse_csv_values(
+            os.getenv("DISCORD_RESPONSE_BLOCKED_CATEGORY_NAMES")
+        ),
         reply_trigger_enabled=parse_bool_env("DISCORD_REPLY_TRIGGER_ENABLED", True),
         wake_word_trigger_enabled=parse_bool_env("DISCORD_WAKE_WORD_TRIGGER_ENABLED", True),
         active_reply_enabled=parse_bool_env("DISCORD_ACTIVE_REPLY_ENABLED", True),
@@ -200,6 +212,56 @@ def contains_wake_word(content: str, wake_words: tuple[str, ...]) -> bool:
 def contains_silence_phrase(content: str, silence_phrases: tuple[str, ...]) -> bool:
     normalized = content.casefold()
     return any(phrase.casefold() in normalized for phrase in silence_phrases)
+
+
+def message_category_id(message: Any) -> str:
+    channel = getattr(message, "channel", None)
+    category_id = getattr(channel, "category_id", None)
+    if category_id is not None:
+        return str(category_id)
+
+    category = getattr(channel, "category", None)
+    category_id = getattr(category, "id", None)
+    if category_id is not None:
+        return str(category_id)
+
+    parent = getattr(channel, "parent", None)
+    parent_category_id = getattr(parent, "category_id", None)
+    if parent_category_id is not None:
+        return str(parent_category_id)
+
+    parent_category = getattr(parent, "category", None)
+    parent_category_id = getattr(parent_category, "id", None)
+    if parent_category_id is not None:
+        return str(parent_category_id)
+
+    return ""
+
+
+def message_category_name(message: Any) -> str:
+    channel = getattr(message, "channel", None)
+    category = getattr(channel, "category", None)
+    category_name = getattr(category, "name", None)
+    if category_name:
+        return str(category_name)
+
+    parent = getattr(channel, "parent", None)
+    parent_category = getattr(parent, "category", None)
+    parent_category_name = getattr(parent_category, "name", None)
+    if parent_category_name:
+        return str(parent_category_name)
+
+    return ""
+
+
+def is_blocked_category(message: Any, config: ResponsePolicyConfig) -> bool:
+    category_id = message_category_id(message)
+    if category_id and category_id in config.blocked_category_ids:
+        return True
+
+    category_name = message_category_name(message).casefold()
+    blocked_category_names = {name.casefold() for name in config.blocked_category_names}
+    return bool(category_name and category_name in blocked_category_names)
 
 
 def channel_key(message: Any) -> str:
@@ -303,6 +365,9 @@ def decide_response(
     state = None
     if state_store is not None:
         state = get_channel_state(state_store, channel_id)
+
+    if is_blocked_category(message, config):
+        return ResponseDecision(False, "category_blocked")
 
     if config.silence_enabled and contains_silence_phrase(content, config.silence_phrases):
         if state_store is not None:
